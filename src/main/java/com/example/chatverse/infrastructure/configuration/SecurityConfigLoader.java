@@ -29,3 +29,4 @@ public class SecurityConfigLoader {
         return config.get("BASE64_SECRET_KEY");
     }
 }
+

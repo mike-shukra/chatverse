@@ -15,16 +15,16 @@ import java.util.Date;
 public class JwtUtils {
 
     private final Key secretKey;
-    private final String secret;
 
     public JwtUtils(SecurityConfigLoader configLoader) {
-        this.secret = configLoader.getSecretKey();
-        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes());
+        String base64Secret = configLoader.getSecretKey();
+        byte[] decodedSecret = Base64.getDecoder().decode(base64Secret);
+        this.secretKey = Keys.hmacShaKeyFor(decodedSecret);
     }
 
     public String extractUserId(String token) {
         return Jwts.parserBuilder()
-                .setSigningKey(Keys.hmacShaKeyFor(Base64.getDecoder().decode(secret)))
+                .setSigningKey(secretKey)
                 .build()
                 .parseClaimsJws(token)
                 .getBody()
@@ -40,14 +40,15 @@ public class JwtUtils {
                 .compact();
     }
 
-    public Claims validateToken(String token) {
+    public boolean validateToken(String token) {
         try {
-            return Jwts.parser()
-                    .setSigningKey(secret)
-                    .parseClaimsJws(token)
-                    .getBody();
+            Jwts.parserBuilder()
+                    .setSigningKey(secretKey)
+                    .build()
+                    .parseClaimsJws(token);
+            return true; // Если токен успешно распарсен, он валиден
         } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid JWT token");
+            return false; // Если произошло исключение, токен не валиден
         }
     }
 

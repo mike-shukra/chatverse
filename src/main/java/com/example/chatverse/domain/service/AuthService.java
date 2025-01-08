@@ -150,7 +150,7 @@ public class AuthService {
     /**
      * Проверка JWT
      */
-    public Claims validateToken(String token) {
+    public boolean validateToken(String token) {
         try {
             return jwtUtils.validateToken(token);
         } catch (Exception e) {
@@ -158,13 +158,9 @@ public class AuthService {
         }
     }
 
-    public void checkJwt(String token) {
+    public boolean checkJwt(String token) {
         try {
-            // Проверка валидности токена
-            Claims claims = validateToken(token);
-
-            // Дополнительная логика: проверка срока действия токена, ролей и т.д.
-            System.out.println("Token is valid. User ID: " + claims.getSubject());
+            return validateToken(token);
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid or expired JWT token");
         }

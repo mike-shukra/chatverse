@@ -9,6 +9,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
@@ -52,17 +53,18 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf.disable()) // Отключение CSRF для REST API
+                .csrf(AbstractHttpConfigurer::disable) // Отключение CSRF для REST API
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
-                                "/api/v1/users/send-auth-code", // Отправка кода авторизации
-                                "/api/v1/users/check-auth-code", // Проверка кода авторизации
-                                "/api/v1/users/refresh-token"   // Обновление токена
-                        ).permitAll() // Доступ без авторизации
-                        .anyRequest().authenticated() // Остальные запросы требуют авторизации
+                                "/api/v1/users/send-auth-code",
+                                "/api/v1/users/check-auth-code",
+                                "/api/v1/users/check-jwt",
+                                "/api/v1/users/refresh-token"
+                        ).permitAll()
+                        .anyRequest().authenticated()
                 )
                 .exceptionHandling(exceptions -> exceptions
                         .accessDeniedHandler(customAccessDeniedHandler()) // Обработка 403

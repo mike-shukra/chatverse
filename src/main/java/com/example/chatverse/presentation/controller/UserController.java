@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -109,22 +110,21 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Проверка JWT", description = "Проверяет валидность JWT.")
+    @Operation(summary = "Проверка JWT", description = "Проверяет валидность JWT.",
+            security = { @SecurityRequirement(name = "bearer-key")})
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Токен валиден."),
             @ApiResponse(responseCode = "401", description = "Токен не валиден.",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping("/check-jwt")
-    public ResponseEntity<Void> checkJwt(@RequestHeader("Authorization") String authHeader) {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new IllegalArgumentException("Authorization header is missing or invalid");
-        }
+    public ResponseEntity<SuccessResponse> checkJwt(Authentication authentication) {
+        System.out.println("checkJwt");
+        String token = (String) authentication.getCredentials();
+        System.out.println("checkJwt token: " + token);
+        boolean isValid = authService.validateToken(token);
 
-        String token = authHeader.substring(7); // Удаление "Bearer " из начала строки
-        authService.checkJwt(token);
-
-        return ResponseEntity.ok().build();
+        return ResponseEntity.status(201).body(new SuccessResponse(isValid));
     }
 
     @Operation(summary = "Обновление токена", description = "Обновляет access и refresh токены.",
