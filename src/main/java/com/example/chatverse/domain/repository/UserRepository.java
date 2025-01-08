@@ -28,16 +28,16 @@ public interface UserRepository extends JpaRepository<PlatformUser, Long> {
     // Получение списка пользователей по роли
     List<PlatformUser> findAllByRole(String role);
 
-    // Поиск пользователей, зарегистрированных после определённой даты
-    List<PlatformUser> findByCreatedDateAfter(LocalDateTime date);
-
     // Поиск пользователей, у которых имя пользователя содержит определённую строку
     List<PlatformUser> findByUsernameContainingIgnoreCase(String usernameFragment);
 
+    // Поиск пользователей, зарегистрированных после определённой даты
+    List<PlatformUser> findByCreatedAfter(LocalDateTime date);
+
     // Поиск всех активных пользователей
-    List<PlatformUser> findByIsActiveTrue();
+    List<PlatformUser> findByActiveTrue();
 
     // Поиск всех неактивных пользователей
-    List<PlatformUser> findByIsActiveFalse();
+    List<PlatformUser> findByActiveFalse();
 }
 

@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -26,7 +27,9 @@ public class UserController {
         this.authService = authService;
     }
 
-    @Operation(summary = "Регистрация пользователя", description = "Создаёт нового пользователя и возвращает токены.")
+    @Operation(summary = "Регистрация пользователя",
+            description = "Создаёт нового пользователя и возвращает токены.",
+            security = { @SecurityRequirement(name = "bearer-key") })
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Пользователь успешно зарегистрирован.",
                     content = @Content(schema = @Schema(implementation = TokenResponse.class))),
@@ -39,7 +42,8 @@ public class UserController {
         return ResponseEntity.status(201).body(tokenResponse);
     }
 
-    @Operation(summary = "Получение текущего пользователя", description = "Возвращает профиль текущего пользователя.")
+    @Operation(summary = "Получение текущего пользователя", description = "Возвращает профиль текущего пользователя.",
+            security = { @SecurityRequirement(name = "bearer-key") })
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Профиль успешно получен.",
                     content = @Content(schema = @Schema(implementation = UserProfileResponse.class))),
@@ -52,7 +56,8 @@ public class UserController {
         return ResponseEntity.ok(profile);
     }
 
-    @Operation(summary = "Обновление профиля пользователя", description = "Обновляет данные профиля пользователя.")
+    @Operation(summary = "Обновление профиля пользователя", description = "Обновляет данные профиля пользователя.",
+            security = { @SecurityRequirement(name = "bearer-key") })
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Профиль успешно обновлён.",
                     content = @Content(schema = @Schema(implementation = UserUpdateResponse.class))),
@@ -65,7 +70,8 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Удаление пользователя", description = "Удаляет пользователя по ID.")
+    @Operation(summary = "Удаление пользователя", description = "Удаляет пользователя по ID.",
+            security = { @SecurityRequirement(name = "bearer-key") })
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Пользователь успешно удалён."),
             @ApiResponse(responseCode = "404", description = "Пользователь не найден.",
@@ -121,7 +127,8 @@ public class UserController {
         return ResponseEntity.ok().build();
     }
 
-    @Operation(summary = "Обновление токена", description = "Обновляет access и refresh токены.")
+    @Operation(summary = "Обновление токена", description = "Обновляет access и refresh токены.",
+            security = { @SecurityRequirement(name = "bearer-key") })
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Токены успешно обновлены.",
                     content = @Content(schema = @Schema(implementation = TokenResponse.class))),
@@ -134,7 +141,8 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Выход пользователя", description = "Устанавливает пользователя в статус offline.")
+    @Operation(summary = "Выход пользователя", description = "Устанавливает пользователя в статус offline.",
+            security = { @SecurityRequirement(name = "bearer-key") })
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Пользователь успешно вышел."),
             @ApiResponse(responseCode = "404", description = "Пользователь не найден.",
@@ -146,7 +154,8 @@ public class UserController {
         return ResponseEntity.ok().build();
     }
 
-    @Operation(summary = "Проверка активности пользователя", description = "Проверяет, находится ли пользователь в статусе online.")
+    @Operation(summary = "Проверка активности пользователя", description = "Проверяет, находится ли пользователь в статусе online.",
+            security = { @SecurityRequirement(name = "bearer-key") })
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Проверка успешна.",
                     content = @Content(schema = @Schema(implementation = Boolean.class))),

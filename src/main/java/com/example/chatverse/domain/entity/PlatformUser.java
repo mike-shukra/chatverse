@@ -7,6 +7,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
+@ToString
 @Getter
 @Setter
 @NoArgsConstructor
@@ -49,11 +50,15 @@ public class PlatformUser {
     @Column(name = "online", nullable = false)
     private boolean online;
 
-    @Column(name = "created")
+    @Column(name = "created", nullable = false)
     private LocalDateTime created;
 
     @Column(name = "completed_task", nullable = false)
     private int completedTask;
 
-}
+    @Column(name = "role")
+    private String role;
 
+    @Column(name = "active", nullable = false)
+    private boolean active;
+}

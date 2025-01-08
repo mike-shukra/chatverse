@@ -1,6 +1,7 @@
 package com.example.chatverse.infrastructure.configuration;
 
 import com.example.chatverse.application.dto.response.ErrorResponse;
+import com.example.chatverse.infrastructure.security.JwtUtils;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,6 +14,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -26,6 +28,12 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
+    private final JwtUtils jwtUtils;
+
+    public SecurityConfig(JwtUtils jwtUtils) {
+        this.jwtUtils = jwtUtils;
+    }
+
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
         return authConfig.getAuthenticationManager();
@@ -36,6 +44,10 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
+    @Bean
+    public JwtAuthenticationFilter jwtAuthenticationFilter() {
+        return new JwtAuthenticationFilter(jwtUtils);
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -47,15 +59,16 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/api/v1/users/send-auth-code", // Отправка кода авторизации
-                                "/api/v1/users/check-auth-code",// Проверка кода авторизации
+                                "/api/v1/users/check-auth-code", // Проверка кода авторизации
                                 "/api/v1/users/refresh-token"   // Обновление токена
-                        ).permitAll() // Доступ без авторизации к Swagger
+                        ).permitAll() // Доступ без авторизации
                         .anyRequest().authenticated() // Остальные запросы требуют авторизации
                 )
                 .exceptionHandling(exceptions -> exceptions
                         .accessDeniedHandler(customAccessDeniedHandler()) // Обработка 403
                         .authenticationEntryPoint(customAuthenticationEntryPoint()) // Обработка 401
-                );
+                )
+                .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class); // Добавляем JWT-фильтр
         return http.build();
     }
 
