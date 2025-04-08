@@ -1,0 +1,65 @@
+# 🧩 Kafka Deployment and Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: chatverse
+spec:
+  type: NodePort  # Для локальной разработки; в проде можно использовать LoadBalancer/ClusterIP
+  ports:
+    - port: 9092
+      targetPort: 9092
+      nodePort: 31012  # Можно задать другой порт в диапазоне 30000-32767
+  selector:
+    app: kafka
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kafka
+  namespace: chatverse
+spec:
+  serviceName: "kafka"
+  replicas: 1  # В проде 3 или больше для HA
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      containers:
+        - name: kafka
+          image: bitnami/kafka:4.0.0
+          ports:
+            - containerPort: 9092
+          env:
+            - name: KAFKA_BROKER_ID
+              value: "0"
+            - name: KAFKA_CFG_ZOOKEEPER_CONNECT
+              value: "zookeeper:2181"
+            - name: ALLOW_PLAINTEXT_LISTENER
+              value: "yes"  # В проде лучше использовать TLS и SASL
+            - name: KAFKA_CFG_LISTENERS
+              value: "PLAINTEXT://:9092"
+            - name: KAFKA_CFG_ADVERTISED_LISTENERS
+              value: "PLAINTEXT://kafka.chatverse.svc.cluster.local:9092"
+          resources:
+            requests:
+              memory: "512Mi"  # 🔧 Минимальный объём памяти
+              cpu: "200m"      # 🔧 Минимальный CPU
+            limits:
+              memory: "1Gi"     # 🔒 Лимит памяти
+              cpu: "500m"      # 🔒 Лимит CPU
+          volumeMounts:
+            - name: kafka-storage
+              mountPath: /bitnami/kafka
+  volumeClaimTemplates:
+    - metadata:
+        name: kafka-storage
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 2Gi  # Регулируется по нагрузке

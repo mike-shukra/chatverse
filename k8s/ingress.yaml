@@ -1,0 +1,16 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: chatverse-ingress
+spec:
+  rules:
+    - host: chatverse.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: chatverse
+                port:
+                  number: 8080

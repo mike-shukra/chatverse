@@ -168,3 +168,13 @@ public class UserController {
         return ResponseEntity.ok(isOnline);
     }
 }
+
+
+/*
+
+curl -X POST http://172.18.0.2:30080/api/v1/users/send-auth-code \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phone": "1234567"  }'
+
+ */
