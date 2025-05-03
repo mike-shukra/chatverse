@@ -1,0 +1,23 @@
+# k8s/ingress-nginx-values.yaml
+controller:
+  # Устанавливаем тип сервиса NodePort для kind
+  service:
+    type: NodePort
+    nodePorts:
+      http: 30080 # Фиксируем HTTP порт
+      # https: 30443 # Можно раскомментировать и задать, если нужен HTTPS
+
+  # Устанавливаем nodeSelector для подов контроллера
+  nodeSelector:
+    ingress-ready: "true"
+
+  # Устанавливаем nodeSelector для подов заданий вебхуков (create и patch)
+  admissionWebhooks:
+    create:
+      nodeSelector:
+        ingress-ready: "true"
+    patch:
+      nodeSelector:
+        ingress-ready: "true"
+
+# Можно добавить другие настройки чарта здесь при необходимости

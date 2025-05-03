@@ -46,6 +46,15 @@ dependencies {
 	// Swagger
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
 
+	//актуатор для мониторинга состояния
+	implementation("org.springframework.boot:spring-boot-starter-actuator")
+
+	// Redis
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	// Kafka
+	implementation 'org.springframework.kafka:spring-kafka'
+
+
 	// Зависимости для тестирования
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'

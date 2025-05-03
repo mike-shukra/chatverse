@@ -2,14 +2,19 @@ package com.example.chatverse.infrastructure.configuration;
 
 import com.example.chatverse.application.dto.response.ErrorResponse;
 import com.example.chatverse.infrastructure.security.JwtUtils;
+import com.fasterxml.jackson.databind.ObjectMapper; // Импортируем ObjectMapper
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger; // Добавляем логгер
+import org.slf4j.LoggerFactory; // Добавляем логгер
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod; // <<< Импортируем HttpMethod
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy; // <<< Добавляем для STATELESS
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
@@ -23,16 +28,22 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays; // <<< Импортируем Arrays
 import java.util.List;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private final JwtUtils jwtUtils;
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class); // Логгер
 
-    public SecurityConfig(JwtUtils jwtUtils) {
+    private final JwtUtils jwtUtils;
+    private final ObjectMapper objectMapper; // <<< Инжектируем ObjectMapper
+
+    // Инжектируем ObjectMapper вместе с JwtUtils
+    public SecurityConfig(JwtUtils jwtUtils, ObjectMapper objectMapper) {
         this.jwtUtils = jwtUtils;
+        this.objectMapper = objectMapper;
     }
 
     @Bean
@@ -45,6 +56,7 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
+    // Предполагаем, что JwtAuthenticationFilter принимает JwtUtils в конструкторе
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter() {
         return new JwtAuthenticationFilter(jwtUtils);
@@ -53,8 +65,15 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(AbstractHttpConfigurer::disable) // Отключение CSRF для REST API
+                // Применяем конфигурацию CORS
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                // Отключаем CSRF, так как используем JWT и REST API без сессий
+                .csrf(AbstractHttpConfigurer::disable)
+                // Настраиваем правила авторизации запросов
                 .authorizeHttpRequests(auth -> auth
+                        // <<< Явно разрешаем OPTIONS запросы для всех путей
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // Разрешаем доступ без аутентификации к публичным эндпоинтам
                         .requestMatchers(
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
@@ -62,21 +81,33 @@ public class SecurityConfig {
                                 "/api/v1/users/send-auth-code",
                                 "/api/v1/users/check-auth-code",
                                 "/api/v1/users/check-jwt",
-                                "/api/v1/users/refresh-token"
+                                "/api/v1/users/refresh-token",
+                                "/actuator/health", // Разрешаем health check
+                                "/actuator/info"    // Разрешаем info
                         ).permitAll()
+                        .requestMatchers("/test/**").permitAll() //TODO
+                        // Запрещаем доступ ко всем остальным actuator эндпоинтам (можно настроить для роли ADMIN позже)
+                        .requestMatchers("/actuator/**").denyAll() //TODO: Настроить доступ для ADMIN
+                        // Все остальные запросы требуют аутентификации
                         .anyRequest().authenticated()
                 )
+                // Устанавливаем политику управления сессиями на STATELESS (без сессий)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // Настраиваем обработчики исключений безопасности
                 .exceptionHandling(exceptions -> exceptions
-                        .accessDeniedHandler(customAccessDeniedHandler()) // Обработка 403
-                        .authenticationEntryPoint(customAuthenticationEntryPoint()) // Обработка 401
+                        .accessDeniedHandler(customAccessDeniedHandler()) // Обработчик для ошибки 403 Forbidden
+                        .authenticationEntryPoint(customAuthenticationEntryPoint()) // Обработчик для ошибки 401 Unauthorized
                 )
-                .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class); // Добавляем JWT-фильтр
+                // Добавляем наш JWT фильтр перед стандартным фильтром аутентификации
+                .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
 
+
     private AccessDeniedHandler customAccessDeniedHandler() {
         return (request, response, accessDeniedException) -> {
-
+            log.warn("Access Denied: {} {}", request.getMethod(), request.getRequestURI(), accessDeniedException); // Логгируем ошибку
             ErrorResponse errorResponse = ErrorResponse.builder()
                     .timestamp(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
                     .status(HttpServletResponse.SC_FORBIDDEN)
@@ -87,13 +118,18 @@ public class SecurityConfig {
 
             response.setContentType("application/json");
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            response.getWriter().write(convertToJson(errorResponse)
-            );
+            try {
+                // Используем инжектированный objectMapper
+                response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
+            } catch (IOException e) {
+                log.error("Error writing Access Denied response", e);
+            }
         };
     }
 
     private AuthenticationEntryPoint customAuthenticationEntryPoint() {
         return (request, response, authException) -> {
+            log.warn("Unauthorized access attempt: {} {}", request.getMethod(), request.getRequestURI(), authException); // Логгируем ошибку
             ErrorResponse errorResponse = ErrorResponse.builder()
                     .timestamp(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
                     .status(HttpServletResponse.SC_UNAUTHORIZED)
@@ -103,22 +139,42 @@ public class SecurityConfig {
                     .build();
             response.setContentType("application/json");
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(convertToJson(errorResponse));
+            try {
+                // Используем инжектированный objectMapper
+                response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
+            } catch (IOException e) {
+                log.error("Error writing Authentication Entry Point response", e);
+            }
         };
     }
 
-    private String convertToJson(ErrorResponse errorResponse) throws IOException {
-        return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(errorResponse);
-    }
+    // Этот метод больше не нужен, так как objectMapper инжектируется
+    // private String convertToJson(ErrorResponse errorResponse) throws IOException {
+    //     return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(errorResponse);
+    // }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("*")); // Разрешите все домены
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        // ВАЖНО: Для отладки используем "*", но для продакшена укажи конкретные домены!
+        configuration.setAllowedOrigins(List.of(
+                "http://localhost",
+                "http://localhost:8888",
+                "http://chatverse.local:8888",
+                "http://localhost:30080",
+                "http://chatverse.local:30080",
+                "http://chatverse.local"
+                // "*" // Можно временно использовать для отладки, если список выше не помогает
+        ));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")); // Добавляем PATCH, если нужно
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With")); // Добавляем стандартные заголовки
+        // configuration.setAllowCredentials(true); // Раскомментируй, если используешь cookies или Authorization
+        configuration.setMaxAge(3600L); // Кэширование preflight запросов на 1 час
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        // Применяем конфигурацию ко всем путям
         source.registerCorsConfiguration("/**", configuration);
+        log.info("CORS configuration applied with allowed origins: {}", configuration.getAllowedOrigins()); // Логгируем конфигурацию CORS
         return source;
     }
 }

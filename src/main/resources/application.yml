@@ -1,0 +1,118 @@
+# ===================================================================
+# Core Spring Boot Settings
+# ===================================================================
+server:
+  port: 8080 # Default HTTP port
+
+# ===================================================================
+# Database (PostgreSQL) Configuration
+# ===================================================================
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/chatverse
+    username: postgres
+    password: postgre
+    driver-class-name: org.postgresql.Driver
+
+  # ===================================================================
+  # JPA / Hibernate Configuration
+  # ===================================================================
+  jpa:
+    hibernate:
+      ddl-auto: update # Strategy for DB schema management
+    show-sql: true # Show SQL statements in logs
+    properties:
+      hibernate:
+        format_sql: true # Format SQL statements
+    defer-datasource-initialization: true # Defer DataSource initialization
+
+  # ===================================================================
+  # Redis Configuration
+  # ===================================================================
+  data:
+    redis:
+      host: redis # Hostname of the Redis service
+      port: 6379
+      # password: # Uncomment and set if your Redis requires a password
+
+  # ===================================================================
+  # Kafka Configuration
+  # ===================================================================
+  kafka:
+    bootstrap-servers: kafka-0.kafka.chatverse.svc.cluster.local:9092 # Address of the Kafka broker(s)
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false # Don't add Java type headers to JSON
+    consumer:
+      group-id: chatverse-app-group # Consumer group ID
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring:
+          json:
+            trusted:
+              packages: com.example.chatverse.application.dto.message.* # Trust packages for JSON deserialization (adjust package name)
+            value:
+              default:
+                type: com.example.chatverse.application.dto.message.ChatMessage # Default type for JSON deserialization (adjust class name)
+            use:
+              type:
+                headers: false # Don't require type headers if default.type is set
+      auto-offset-reset: earliest # Start reading from the earliest offset if no offset is stored
+
+  # ===================================================================
+  # Flyway Configuration (Uncomment if you decide to use Flyway)
+  # ===================================================================
+  # flyway:
+  #   enabled: true
+  #   baseline-on-migrate: true # Creates baseline if no metadata table exists
+  #   url: ${spring.datasource.url} # Use the same datasource URL
+  #   user: ${spring.datasource.username} # Use the same datasource username
+  #   password: ${spring.datasource.password} # Use the same datasource password
+  #   locations: classpath:db/migration # Location of your SQL migration scripts
+  #   baseline-version: 1 # Version to start with if baselining
+  #   baseline-description: Initial_Setup # Description for the baseline
+
+# ===================================================================
+# Actuator Configuration
+# ===================================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics # Expose specific actuator endpoints
+  endpoint:
+    health:
+      show-details: always # Show full details in /health
+      # group: # Configure health groups (optional)
+      #   liveness:
+      #     include: livenessState,diskSpace # Add kafka here if needed explicitly
+      #   readiness:
+      #     include: readinessState,db,redis,kafka
+
+# ===================================================================
+# Swagger / SpringDoc OpenAPI Configuration
+# ===================================================================
+springdoc:
+  swagger-ui:
+    enabled: true # Enable Swagger UI
+    servers:
+      - url: http://chatverse.local:8888 # Set the server URL for Swagger UI
+
+# ===================================================================
+# Logging Configuration
+# ===================================================================
+logging:
+  level:
+    root: INFO
+    org.springframework: INFO
+    org.hibernate: ERROR # Reduce Hibernate noise
+    com.example.chatverse: DEBUG # Your application's base package (adjust if needed)
+    # --- Kafka Debug Logging ---
+    org.apache.kafka.clients: DEBUG
+    org.springframework.kafka: DEBUG
+    # --- Redis Debug Logging (Uncomment if needed) ---
+    # io.lettuce.core: DEBUG
+    # org.springframework.data.redis: DEBUG

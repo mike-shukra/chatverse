@@ -1,15 +1,17 @@
-# 🧩 Kafka Deployment and Service
 apiVersion: v1
 kind: Service
 metadata:
   name: kafka
   namespace: chatverse
+  labels:
+    app: kafka
+    component: messaging
 spec:
-  type: NodePort  # Для локальной разработки; в проде можно использовать LoadBalancer/ClusterIP
+  type: NodePort
   ports:
     - port: 9092
       targetPort: 9092
-      nodePort: 31012  # Можно задать другой порт в диапазоне 30000-32767
+      nodePort: 31012 # Убедись, что этот порт не конфликтует с другими NodePort
   selector:
     app: kafka
 ---
@@ -18,9 +20,13 @@ kind: StatefulSet
 metadata:
   name: kafka
   namespace: chatverse
+  labels:
+    app: kafka
+    component: messaging
 spec:
   serviceName: "kafka"
-  replicas: 1  # В проде 3 или больше для HA
+  replicas: 1
+  podManagementPolicy: OrderedReady
   selector:
     matchLabels:
       app: kafka
@@ -28,38 +34,86 @@ spec:
     metadata:
       labels:
         app: kafka
+        component: messaging
     spec:
+      # hostname и subdomain обычно не нужны для single-node StatefulSet, но не мешают
+      hostname: kafka
+      subdomain: kafka
       containers:
         - name: kafka
-          image: bitnami/kafka:4.0.0
+          image: bitnami/kafka:3.6.1 # Используем ту же версию
           ports:
             - containerPort: 9092
+              name: client # Имя для порта клиента
+            - containerPort: 9093
+              name: controller # Имя для порта контроллера
           env:
-            - name: KAFKA_BROKER_ID
-              value: "0"
-            - name: KAFKA_CFG_ZOOKEEPER_CONNECT
-              value: "zookeeper:2181"
-            - name: ALLOW_PLAINTEXT_LISTENER
-              value: "yes"  # В проде лучше использовать TLS и SASL
+            - name: KAFKA_CFG_KRAFT_MODE
+              value: "true"
+            - name: KAFKA_CFG_PROCESS_ROLES
+              value: "broker,controller"
+            - name: KAFKA_CFG_NODE_ID
+              value: "1"
+            - name: KAFKA_CFG_CONTROLLER_QUORUM_VOTERS
+              value: "1@kafka-0.kafka.chatverse.svc.cluster.local:9093"
             - name: KAFKA_CFG_LISTENERS
-              value: "PLAINTEXT://:9092"
+              value: "PLAINTEXT://:9092,CONTROLLER://:9093"
             - name: KAFKA_CFG_ADVERTISED_LISTENERS
-              value: "PLAINTEXT://kafka.chatverse.svc.cluster.local:9092"
-          resources:
+              value: "PLAINTEXT://kafka-0.kafka.chatverse.svc.cluster.local:9092"
+            - name: KAFKA_CFG_CONTROLLER_LISTENER_NAMES
+              value: "CONTROLLER"
+            - name: KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP
+              value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+            - name: ALLOW_PLAINTEXT_LISTENER # Разрешает незащищенный listener (для разработки)
+              value: "yes"
+            - name: KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE # Разрешает авто-создание топиков
+              value: "true"
+            - name: KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR # Важно для single-node
+              value: "1"
+            # Дополнительные переменные для улучшения стабильности KRaft single-node (опционально)
+            # - name: KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+            #   value: "1"
+            # - name: KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR
+            #   value: "1"
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                # Проверяем, можем ли получить список топиков
+                - "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"
+            initialDelaySeconds: 90   # <<< Увеличено: Ждем 90 секунд перед первой проверкой
+            periodSeconds: 20       # <<< Увеличено: Проверяем каждые 20 секунд
+            timeoutSeconds: 45      # <<< Увеличено: Даем команде 45 секунд на выполнение
+            failureThreshold: 3     # <<< Оставлено: 3 неудачные попытки = NotReady
+            successThreshold: 1     # <<< Оставлено: 1 удачная попытка = Ready
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                # Проверяем, можем ли получить версии API брокера
+                - "kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"
+            initialDelaySeconds: 120  # <<< Увеличено: Ждем 120 секунд перед первой проверкой
+            periodSeconds: 30       # <<< Увеличено: Проверяем каждые 30 секунд
+            timeoutSeconds: 30      # <<< Увеличено: Даем команде 30 секунд на выполнение
+            failureThreshold: 5     # <<< Уменьшено: 5 неудачных попыток = перезапуск пода
+            successThreshold: 1     # <<< Оставлено: 1 удачная попытка = OK
+          resources: # Оставляем как было, но убедись, что ресурсов достаточно
             requests:
-              memory: "512Mi"  # 🔧 Минимальный объём памяти
-              cpu: "200m"      # 🔧 Минимальный CPU
+              memory: "512Mi"
+              cpu: "500m"
             limits:
-              memory: "1Gi"     # 🔒 Лимит памяти
-              cpu: "500m"      # 🔒 Лимит CPU
+              memory: "1Gi"
+              cpu: "1" # Используем "1" вместо "1000m" для ясности
           volumeMounts:
             - name: kafka-storage
-              mountPath: /bitnami/kafka
-  volumeClaimTemplates:
+              mountPath: /bitnami/kafka # Стандартный путь для данных в образе Bitnami
+  volumeClaimTemplates: # Для StatefulSet используем шаблоны томов
     - metadata:
-        name: kafka-storage
+        name: kafka-storage # Имя шаблона должно совпадать с volumeMounts.name
       spec:
-        accessModes: [ "ReadWriteOnce" ]
+        accessModes: [ "ReadWriteOnce" ] # Подходит для Kind
         resources:
           requests:
-            storage: 2Gi  # Регулируется по нагрузке
+            storage: 2Gi # Размер диска для Kafka
