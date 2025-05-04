@@ -1,5 +1,6 @@
 package com.example.chatverse.infrastructure.configuration;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 
@@ -19,7 +20,7 @@ public class SecurityConfigLoader {
                 throw new FileNotFoundException("security-config.json not found in classpath");
             }
             ObjectMapper objectMapper = new ObjectMapper();
-            this.config = objectMapper.readValue(inputStream, Map.class);
+            this.config = objectMapper.readValue(inputStream, new TypeReference<Map<String, String>>() {});
         } catch (Exception e) {
             throw new RuntimeException("Failed to load security configuration", e);
         }
