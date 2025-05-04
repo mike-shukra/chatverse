@@ -11,9 +11,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.concurrent.CompletableFuture;
 
-/**
- * Service responsible for sending messages to Kafka.
- */
 @Service
 public class MessageProducerService {
 
@@ -29,22 +26,24 @@ public class MessageProducerService {
         this.kafkaTemplate = kafkaTemplate;
     }
 
-    /**
-     * Sends a chat message to the configured Kafka topic.
-     * Uses roomId or recipientId as the Kafka message key for partitioning.
-     *
-     * @param message The ChatMessage object to send.
-     */
     public void sendMessage(ChatMessage message) {
         if (message == null || chatTopicName == null) {
             log.error("Cannot send null message or topic name is not configured.");
             return;
         }
 
-        String key = message.getRoomId() != null ? message.getRoomId() : message.getRecipientId();
-        if (key == null) {
-            key = message.getSenderId();
+        String key = null;
+        if (message.getRoomId() != null) {
+            key = message.getRoomId(); // RoomId уже String
+        } else if (message.getRecipientId() != null) {
+            key = String.valueOf(message.getRecipientId()); // Преобразуем Long в String
+        } else if (message.getSenderId() != null) {
+            key = String.valueOf(message.getSenderId()); // Преобразуем Long в String
             log.warn("Message key is null (no roomId or recipientId), using senderId: {}", key);
+        } else {
+            log.error("Cannot determine Kafka message key for message: {}", message.getMessageId());
+            // Возможно, стоит выбросить исключение или не отправлять сообщение
+            return;
         }
 
         log.debug("Attempting to send message with key [{}]: {}", key, message);
@@ -60,7 +59,6 @@ public class MessageProducerService {
                         result.getRecordMetadata().partition());
             } else {
                 log.error("Unable to send message=[{}] due to : {}", message.getMessageId(), ex.getMessage(), ex);
-                // Consider adding error handling logic (retry, DLQ, etc.)
             }
         });
     }

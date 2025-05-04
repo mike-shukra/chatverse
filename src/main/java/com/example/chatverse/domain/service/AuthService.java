@@ -11,6 +11,8 @@ import com.example.chatverse.infrastructure.security.JwtUtils;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,9 +23,9 @@ import java.util.*;
 @Transactional
 public class AuthService {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
     private static final long ACCESS_TOKEN_EXPIRATION = 1000 * 60 * 15; // 15 минут
     private static final long REFRESH_TOKEN_EXPIRATION = 1000 * 60 * 60 * 24 * 7; // 7 дней
-
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
     private final JwtUtils jwtUtils;
@@ -46,7 +48,8 @@ public class AuthService {
         String authCode = String.format("%04d", new Random().nextInt(10000));
 
         //TODO Логика отправки SMS (заглушка)
-        System.out.println("Sending auth code: " + authCode + " to phone: " + phone);
+        log.info("Sending auth code: {} to phone: {}", authCode, phone);
+
         authCodes.put(phone, authCode);
 
         return true;

@@ -54,6 +54,16 @@ dependencies {
 	// Kafka
 	implementation 'org.springframework.kafka:spring-kafka'
 
+	//mapstruct
+	implementation 'org.mapstruct:mapstruct:1.5.5.Final' // Используй актуальную версию
+	annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
+	annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0' // Если используешь Lombok + MapStruct
+
+
+	//websocket
+	implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
+
 
 	// Зависимости для тестирования
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'

@@ -9,7 +9,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Represents a message transferred via Kafka. (Data Transfer Object for Kafka messages)
+ * Represents a message transferred via Kafka and WebSocket.
  */
 @Data
 @NoArgsConstructor
@@ -20,8 +20,8 @@ public class ChatMessage {
     @Builder.Default
     private String messageId = UUID.randomUUID().toString();
 
-    private String senderId;
-    private String recipientId;
+    private Long senderId;
+    private Long recipientId;
     private String roomId;
     private String content;
 

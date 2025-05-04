@@ -108,11 +108,12 @@ logging:
   level:
     root: INFO
     org.springframework: INFO
+    org.springframework.web.filter.CommonsRequestLoggingFilter: DEBUG
     org.hibernate: ERROR # Reduce Hibernate noise
     com.example.chatverse: DEBUG # Your application's base package (adjust if needed)
-    # --- Kafka Debug Logging ---
-    org.apache.kafka.clients: DEBUG
-    org.springframework.kafka: DEBUG
+    # --- Kafka Logging (Reduced from DEBUG) ---
+    org.apache.kafka.clients: INFO # Понижен с DEBUG до INFO
+    org.springframework.kafka: INFO # Понижен с DEBUG до INFO
     # --- Redis Debug Logging (Uncomment if needed) ---
     # io.lettuce.core: DEBUG
     # org.springframework.data.redis: DEBUG

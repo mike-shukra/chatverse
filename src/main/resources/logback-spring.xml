@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- Подключаем стандартные настройки Spring Boot (для консоли и т.д.) -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml" />
+
+    <!-- Переменная для пути к логам -->
+    <!-- По умолчанию будет 'logs' относительно директории запуска приложения -->
+    <!-- В нашем Docker-контейнере это будет /app/logs -->
+    <property name="LOG_PATH" value="${LOG_PATH:-logs}"/>
+    <!-- Переменная для имени файла логов -->
+    <property name="LOG_FILE_NAME" value="${LOG_FILE_NAME:-chatverse-app}"/>
+
+    <!-- Аппендер для записи в файл с ротацией -->
+    <appender name="ROLLING_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_PATH}/${LOG_FILE_NAME}.log</file> <!-- Имя основного файла лога -->
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- Шаблон имени для архивных файлов логов (по дате и номеру) -->
+            <fileNamePattern>${LOG_PATH}/${LOG_FILE_NAME}-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <!-- Максимальный размер одного файла лога -->
+            <maxFileSize>10MB</maxFileSize>
+            <!-- Максимальное время хранения архивов логов -->
+            <maxHistory>30</maxHistory>
+            <!-- Общий максимальный размер всех архивов логов -->
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+
+        <encoder>
+            <!-- Используем стандартный паттерн Spring Boot для логов -->
+            <pattern>${FILE_LOG_PATTERN}</pattern>
+            <charset>utf8</charset>
+        </encoder>
+    </appender>
+
+    <!-- Настройка уровней логирования -->
+    <!-- Можно использовать уровни из application.yml или переопределить здесь -->
+    <!-- Например, установить уровень INFO для всего -->
+    <root level="INFO">
+        <!-- Подключаем стандартный консольный аппендер Spring Boot -->
+        <appender-ref ref="CONSOLE" />
+        <!-- Подключаем наш файловый аппендер -->
+        <appender-ref ref="ROLLING_FILE" />
+    </root>
+
+    <!-- Можно задать более детальные уровни для конкретных пакетов -->
+    <!-- Уровни из application.yml будут иметь приоритет, если они заданы -->
+    <logger name="com.example.chatverse" level="DEBUG"/>
+    <logger name="org.springframework" level="INFO"/>
+    <logger name="org.hibernate" level="ERROR"/>
+    <logger name="org.apache.kafka" level="DEBUG"/> <!-- Оставляем DEBUG для Kafka, как в yml -->
+
+</configuration>

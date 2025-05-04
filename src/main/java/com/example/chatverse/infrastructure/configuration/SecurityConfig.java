@@ -2,19 +2,19 @@ package com.example.chatverse.infrastructure.configuration;
 
 import com.example.chatverse.application.dto.response.ErrorResponse;
 import com.example.chatverse.infrastructure.security.JwtUtils;
-import com.fasterxml.jackson.databind.ObjectMapper; // Импортируем ObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
-import org.slf4j.Logger; // Добавляем логгер
-import org.slf4j.LoggerFactory; // Добавляем логгер
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod; // <<< Импортируем HttpMethod
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.config.http.SessionCreationPolicy; // <<< Добавляем для STATELESS
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
@@ -35,12 +35,11 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class); // Логгер
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
     private final JwtUtils jwtUtils;
-    private final ObjectMapper objectMapper; // <<< Инжектируем ObjectMapper
+    private final ObjectMapper objectMapper;
 
-    // Инжектируем ObjectMapper вместе с JwtUtils
     public SecurityConfig(JwtUtils jwtUtils, ObjectMapper objectMapper) {
         this.jwtUtils = jwtUtils;
         this.objectMapper = objectMapper;
@@ -80,10 +79,10 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/api/v1/users/send-auth-code",
                                 "/api/v1/users/check-auth-code",
-                                "/api/v1/users/check-jwt",
                                 "/api/v1/users/refresh-token",
-                                "/actuator/health", // Разрешаем health check
-                                "/actuator/info"    // Разрешаем info
+                                "/actuator/health",
+                                "/actuator/info",
+                                "/ws/**"
                         ).permitAll()
                         .requestMatchers("/test/**").permitAll() //TODO
                         // Запрещаем доступ ко всем остальным actuator эндпоинтам (можно настроить для роли ADMIN позже)

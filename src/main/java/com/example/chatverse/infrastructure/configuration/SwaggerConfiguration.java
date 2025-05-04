@@ -12,8 +12,6 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class SwaggerConfiguration {
 
-    public static final String AUTHORIZATION_HEADER = "Authorization";
-
     @Bean
     public OpenAPI myOpenAPI() {
         return new OpenAPI()
@@ -25,9 +23,11 @@ public class SwaggerConfiguration {
                         .description("My Wiki Documentation"))
                 .components(new Components()
                         .addSecuritySchemes("bearer-key",
-                                new SecurityScheme().type(SecurityScheme.Type.APIKEY)
-                                        .in(SecurityScheme.In.HEADER)
-                                        .name(AUTHORIZATION_HEADER)));
+                                new SecurityScheme()
+                                        .type(SecurityScheme.Type.HTTP)
+                                        .scheme("bearer")
+                                        .bearerFormat("JWT")
+                        )
+                );
     }
 }
-
