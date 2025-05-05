@@ -35,3 +35,6 @@ out/
 
 ### VS Code ###
 .vscode/
+
+## config, keys ##
+/src/main/resources/security-config.json

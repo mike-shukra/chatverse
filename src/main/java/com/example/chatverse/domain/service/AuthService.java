@@ -7,9 +7,12 @@ import com.example.chatverse.domain.entity.PlatformUser;
 import com.example.chatverse.domain.entity.RefreshToken;
 import com.example.chatverse.domain.repository.RefreshTokenRepository;
 import com.example.chatverse.domain.repository.UserRepository;
+import com.example.chatverse.infrastructure.security.JwtUtils;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,21 +23,22 @@ import java.util.*;
 @Transactional
 public class AuthService {
 
-    private static final String SECRET_KEY = "your-secret-key";
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
     private static final long ACCESS_TOKEN_EXPIRATION = 1000 * 60 * 15; // 15 минут
     private static final long REFRESH_TOKEN_EXPIRATION = 1000 * 60 * 60 * 24 * 7; // 7 дней
-
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
+    private final JwtUtils jwtUtils;
 
     /**
      *TODO Хранилище для кодов авторизации (заглушка)
      */
     private final Map<String, String> authCodes = new HashMap<>();
 
-    public AuthService(RefreshTokenRepository refreshTokenRepository, UserRepository userRepository) {
+    public AuthService(RefreshTokenRepository refreshTokenRepository, UserRepository userRepository, JwtUtils jwtUtils) {
         this.refreshTokenRepository = refreshTokenRepository;
         this.userRepository = userRepository;
+        this.jwtUtils = jwtUtils;
     }
 
     /**
@@ -44,7 +48,8 @@ public class AuthService {
         String authCode = String.format("%04d", new Random().nextInt(10000));
 
         //TODO Логика отправки SMS (заглушка)
-        System.out.println("Sending auth code: " + authCode + " to phone: " + phone);
+        log.info("Sending auth code: {} to phone: {}", authCode, phone);
+
         authCodes.put(phone, authCode);
 
         return true;
@@ -72,10 +77,14 @@ public class AuthService {
             user = userRepository.findByPhone(phone).get();
         } else {
             user = UserMapper.phoneToEntity(phone);
+            System.out.println("checkAuthCode user: " + user);
             user = userRepository.save(user);
+            System.out.println("checkAuthCode user save: " + user);
         }
         String accessToken = generateToken(user.getId().toString(), ACCESS_TOKEN_EXPIRATION);
+        System.out.println("accessToken: " + accessToken);
         String refreshToken = generateRefreshToken(user.getId());
+        System.out.println("refreshToken" + refreshToken);
 
         return LoginResponse.builder()
                 .refreshToken(refreshToken)
@@ -132,35 +141,29 @@ public class AuthService {
      * Генерация JWT
      */
     private String generateToken(String userId, long expirationTime) {
-        return Jwts.builder()
-                .setSubject(userId)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + expirationTime))
-                .signWith(SignatureAlgorithm.HS512, SECRET_KEY)
-                .compact();
+        try {
+            System.out.println("generateToken userId: " + userId + " expirationTime: " + expirationTime);
+            return jwtUtils.generateToken(userId, expirationTime);
+        } catch (Exception e) {
+            System.err.println("Error generating token: " + e.getMessage());
+            throw new RuntimeException("Error generating token", e);
+        }
     }
 
     /**
      * Проверка JWT
      */
-    public Claims validateToken(String token) {
+    public boolean validateToken(String token) {
         try {
-            return Jwts.parser()
-                    .setSigningKey(SECRET_KEY)
-                    .parseClaimsJws(token)
-                    .getBody();
+            return jwtUtils.validateToken(token);
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid JWT token");
         }
     }
 
-    public void checkJwt(String token) {
+    public boolean checkJwt(String token) {
         try {
-            // Проверка валидности токена
-            Claims claims = validateToken(token);
-
-            // Дополнительная логика: проверка срока действия токена, ролей и т.д.
-            System.out.println("Token is valid. User ID: " + claims.getSubject());
+            return validateToken(token);
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid or expired JWT token");
         }
