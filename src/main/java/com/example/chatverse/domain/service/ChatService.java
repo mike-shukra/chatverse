@@ -1,8 +1,8 @@
 package com.example.chatverse.domain.service;
 
 import com.example.chatverse.application.dto.message.ChatMessage;
+import com.example.chatverse.application.dto.message.SendMessageRequestDto;
 import com.example.chatverse.application.mapper.ChatMessageMapper;
-// Импортируем MessageProducerService
 import com.example.chatverse.application.service.kafka.MessageProducerService;
 import com.example.chatverse.domain.entity.ChatMessageEntity;
 import com.example.chatverse.domain.repository.ChatMessageRepository;
@@ -10,8 +10,7 @@ import com.example.chatverse.domain.repository.UserRepository;
 import com.example.chatverse.infrastructure.exception.UserNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-// Удаляем импорт KafkaTemplate
-// import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
@@ -35,72 +34,65 @@ public class ChatService {
     private final ChatMessageMapper chatMessageMapper;
 
     /**
-     * Подготавливает и отправляет сообщение через MessageProducerService.
-     * @param message DTO сообщения (ожидается recipientId и content).
+     * Извлекает ID отправителя из объекта Authentication.
      * @param authentication Информация об аутентифицированном пользователе.
+     * @return ID отправителя.
+     * @throws IllegalArgumentException если ID пользователя не может быть определен.
      */
-    public void sendMessage(ChatMessage message, Authentication authentication) {
-        Long senderId;
+    private Long extractSenderIdFromAuth(Authentication authentication) {
         Object principal = authentication.getPrincipal();
-        // --- Логика извлечения senderId остается без изменений ---
         if (principal instanceof UserDetails userDetails) {
             try {
-                senderId = Long.parseLong(userDetails.getUsername());
+                return Long.parseLong(userDetails.getUsername());
             } catch (NumberFormatException e) {
                 log.error("Could not parse user ID from username: {}", userDetails.getUsername(), e);
-                throw new IllegalArgumentException("Invalid user ID format in authentication principal.");
+                throw new IllegalArgumentException("Invalid user ID format in authentication principal (UserDetails).");
             }
         } else if (principal instanceof String username) {
             try {
-                senderId = Long.parseLong(username);
+                return Long.parseLong(username);
             } catch (NumberFormatException e) {
                 log.error("Could not parse user ID from principal string: {}", username, e);
-                throw new IllegalArgumentException("Invalid user ID format in authentication principal.");
+                throw new IllegalArgumentException("Invalid user ID format in authentication principal (String).");
             }
-        }
-        else {
-            log.error("Unexpected principal type: {}", principal.getClass().getName());
+        } else {
+            log.error("Unexpected principal type: {}", principal != null ? principal.getClass().getName() : "null");
             throw new IllegalArgumentException("Cannot determine sender ID from authentication principal.");
         }
-        // --- Конец логики извлечения senderId ---
+    }
 
+    /**
+     * Подготавливает и отправляет сообщение через MessageProducerService.
+     * @param requestDto DTO с данными для нового сообщения (ожидается recipientId и content).
+     * @param authentication Информация об аутентифицированном пользователе.
+     */
+    public void sendMessage(SendMessageRequestDto requestDto, Authentication authentication) {
+        Long senderId = extractSenderIdFromAuth(authentication);
 
-        // Проверяем существование получателя
-        Long recipientId = message.getRecipientId();
+        Long recipientId = requestDto.getRecipientId();
         if (recipientId == null) {
-            // Если это не групповой чат (roomId не задан явно клиентом), то получатель обязателен
-            if (message.getRoomId() == null) {
-                log.error("Recipient ID is null and Room ID is null for message content: {}", message.getContent());
-                throw new IllegalArgumentException("Recipient ID cannot be null for a private message.");
-            }
-            // Если roomId задан, то recipientId может быть null (например, сообщение в общую комнату)
-            // Но в нашей текущей логике roomId генерируется на основе sender/recipient,
-            // поэтому для 1-на-1 чатов recipientId должен быть.
-            // Если планируются групповые чаты с явным roomId, эту логику нужно будет пересмотреть.
-        } else if (!userRepository.existsById(recipientId)) {
+            log.error("Recipient ID is null for message content: {}", requestDto.getContent());
+            throw new IllegalArgumentException("Recipient ID cannot be null for a private message.");
+        }
+        if (!userRepository.existsById(recipientId)) {
             throw new UserNotFoundException("Recipient user with ID " + recipientId + " not found.");
         }
 
-        // Генерируем ID комнаты (для 1-на-1 чата), если он не задан
-        String roomId = message.getRoomId();
-        if (roomId == null && recipientId != null) {
-            roomId = generateRoomId(senderId, recipientId);
-        } else if (roomId == null) {
-            // Ситуация, когда нет ни recipientId, ни roomId - не должна происходить при текущей логике
-            log.error("Cannot determine roomId: recipientId is null and roomId is null.");
-            throw new IllegalArgumentException("Cannot determine target for the message (missing recipientId or roomId).");
-        }
+        // Генерируем ID комнаты
+        String roomId = generateRoomId(senderId, recipientId);
 
+        // Создаем полное ChatMessage DTO для отправки в Kafka
+        ChatMessage kafkaMessage = ChatMessage.builder()
+                .messageId(UUID.randomUUID().toString()) // Генерируем уникальный ID
+                .senderId(senderId)
+                .recipientId(recipientId) // recipientId здесь нужен для информации и для WebSocket, если он будет его использовать
+                .roomId(roomId)           // Устанавливаем сгенерированный roomId
+                .content(requestDto.getContent())
+                .timestamp(Instant.now())
+                .build();
 
-        // Заполняем DTO перед отправкой
-        message.setSenderId(senderId);
-        message.setRoomId(roomId); // Устанавливаем сгенерированный или исходный roomId
-        message.setTimestamp(Instant.now());
-        message.setMessageId(UUID.randomUUID().toString()); // Генерируем уникальный ID
-
-        log.info("Prepared message, sending via MessageProducerService: {}", message);
-        messageProducerService.sendMessage(message);
-        // Сохранение в БД теперь происходит в MessageConsumerService после получения из Kafka
+        log.info("Prepared message, sending via MessageProducerService: {}", kafkaMessage);
+        messageProducerService.sendMessage(kafkaMessage); // Отправляем полное DTO
     }
 
     /**
@@ -111,16 +103,25 @@ public class ChatService {
      */
     @Transactional(readOnly = true)
     public List<ChatMessage> getMessageHistory(String roomId, Authentication authentication) {
-        // TODO: Добавить проверку, имеет ли текущий пользователь доступ к этой комнате
-        // Например, извлечь ID пользователей из roomId и сравнить с ID из authentication
-        // Long currentUserId = ... получить ID из authentication ...
-        // String[] userIds = roomId.split("_");
-        // if (!userIds[0].equals(String.valueOf(currentUserId)) && !userIds[1].equals(String.valueOf(currentUserId))) {
-        //    throw new AccessDeniedException("User does not have access to this chat room.");
-        // }
+        Long currentUserId = extractSenderIdFromAuth(authentication);
+
+        // Проверка доступа к комнате
+        String[] userIdsInRoom = roomId.split("_");
+        if (userIdsInRoom.length != 2) { // Базовая проверка формата roomId
+            log.warn("Invalid roomId format encountered: {}", roomId);
+            throw new AccessDeniedException("Invalid room ID format.");
+        }
+
+        boolean userIsInRoom = Arrays.stream(userIdsInRoom)
+                .anyMatch(idStr -> idStr.equals(String.valueOf(currentUserId)));
+
+        if (!userIsInRoom) {
+            log.warn("User {} attempted to access room {} without permission.", currentUserId, roomId);
+            throw new AccessDeniedException("User does not have access to this chat room.");
+        }
 
         List<ChatMessageEntity> messageEntities = chatMessageRepository.findByRoomIdOrderByTimestampAsc(roomId);
-        log.info("Retrieved {} messages for room ID '{}'", messageEntities.size(), roomId);
+        log.info("Retrieved {} messages for room ID '{}' for user {}", messageEntities.size(), roomId, currentUserId);
         return chatMessageMapper.toDtoList(messageEntities);
     }
 
@@ -135,6 +136,14 @@ public class ChatService {
             log.error("Cannot generate room ID with null user IDs: userId1={}, userId2={}", userId1, userId2);
             throw new IllegalArgumentException("User IDs cannot be null for generating a room ID.");
         }
+        // Предотвращаем создание комнаты с самим собой, если это не предполагается бизнес-логикой
+        if (userId1.equals(userId2)) {
+            log.warn("Attempted to generate a room ID for a user with themselves: userId={}", userId1);
+            // Можно либо бросить исключение, либо вернуть специальный ID, либо разрешить,
+            // в зависимости от требований. Пока бросим исключение для ясности.
+            throw new IllegalArgumentException("Cannot generate a room ID for a user with themselves.");
+        }
+
         List<Long> ids = Arrays.asList(userId1, userId2);
         ids.sort(Comparator.naturalOrder());
         return ids.stream().map(String::valueOf).collect(Collectors.joining("_"));

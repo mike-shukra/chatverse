@@ -129,8 +129,7 @@ public class UserController {
         return ResponseEntity.ok(new SuccessResponse(true));
     }
 
-    @Operation(summary = "Обновление токена", description = "Обновляет access и refresh токены.",
-            security = { @SecurityRequirement(name = "bearer-key") })
+    @Operation(summary = "Обновление токена", description = "Обновляет access и refresh токены.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Токены успешно обновлены.",
                     content = @Content(schema = @Schema(implementation = TokenResponse.class))),
