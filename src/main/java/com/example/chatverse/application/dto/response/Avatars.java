@@ -6,11 +6,17 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.io.Serial;
+import java.io.Serializable;
+
 @Data
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class Avatars {
+public class Avatars implements Serializable {
+    @Serial
+    private static final long serialVersionUID = 1L;
+
     @Schema(description = "URL основного аватара")
     private String avatar;
     @Schema(description = "URL большого аватара")

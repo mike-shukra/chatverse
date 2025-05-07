@@ -9,6 +9,9 @@ import com.example.chatverse.application.dto.response.UserUpdateResponse;
 import com.example.chatverse.application.mapper.UserMapper;
 import com.example.chatverse.domain.entity.PlatformUser;
 import com.example.chatverse.domain.repository.UserRepository;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -83,6 +86,7 @@ public class UserService {
     /**
      * Получение профиля текущего пользователя
      */
+    @Cacheable(value = "users", key = "#userId")
     public UserProfileResponse getCurrentUser(Long userId) {
         PlatformUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -114,6 +118,7 @@ public class UserService {
     /**
      * Обновление профиля пользователя
      */
+    @CacheEvict(value = "users", key = "#userId")
     public UserUpdateResponse updateUserProfile(Long userId, UserUpdateRequest request) {
         PlatformUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -133,6 +138,7 @@ public class UserService {
     /**
      * Удаление пользователя
      */
+    @CacheEvict(value = "users", key = "#userId")
     public void deleteUser(Long userId) {
         if (!userRepository.existsById(userId)) {
             throw new IllegalArgumentException("User not found");
@@ -152,6 +158,7 @@ public class UserService {
     /**
      * Выход пользователя (установка оффлайн)
      */
+    @CacheEvict(value = "users", key = "#userId")
     public void logoutUser(Long userId) {
         PlatformUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
