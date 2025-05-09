@@ -162,7 +162,9 @@ public class SecurityConfig {
                 "http://chatverse.local:8888",
                 "http://localhost:30080",
                 "http://chatverse.local:30080",
-                "http://chatverse.local"
+                "http://chatverse.local",
+                "http://127.0.0.1:5173",
+                "http://127.0.0.1"
                 // "*" // Можно временно использовать для отладки, если список выше не помогает
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")); // Добавляем PATCH, если нужно

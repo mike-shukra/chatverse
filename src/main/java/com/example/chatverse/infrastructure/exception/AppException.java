@@ -1,4 +1,4 @@
-package com.example.chatverse.presentation.exception;
+package com.example.chatverse.infrastructure.exception;
 
 public abstract class AppException extends RuntimeException {
     public AppException(String message) {

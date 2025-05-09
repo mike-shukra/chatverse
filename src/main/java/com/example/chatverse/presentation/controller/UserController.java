@@ -4,8 +4,8 @@ import com.example.chatverse.application.dto.request.*;
 import com.example.chatverse.application.dto.response.*;
 import com.example.chatverse.domain.service.AuthService;
 import com.example.chatverse.domain.service.UserService;
-import com.example.chatverse.presentation.exception.InvalidTokenUserIdException;
-import com.example.chatverse.presentation.exception.UserNotAuthenticatedException;
+import com.example.chatverse.infrastructure.exception.InvalidTokenUserIdException;
+import com.example.chatverse.infrastructure.exception.UserNotAuthenticatedException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -15,15 +15,11 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 @RestController
 @RequestMapping("/api/v1/users")

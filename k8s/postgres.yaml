@@ -36,7 +36,7 @@ spec:
       containers:
         - name: postgres
           image: postgres:14-alpine
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           env:
             - name: POSTGRES_DB
               value: chatverse

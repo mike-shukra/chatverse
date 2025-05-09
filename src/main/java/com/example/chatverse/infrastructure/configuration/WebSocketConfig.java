@@ -12,12 +12,17 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // Регистрирует эндпоинт /ws, который клиенты будут использовать для подключения.
-        // withSockJS() обеспечивает фолбэк для браузеров без поддержки WebSocket.
-        // setAllowedOrigins("*") разрешает подключения с любых доменов (для разработки).
-        // В продакшене укажите конкретные разрешенные домены!
+        // Регистрируем эндпоинт /ws, к которому будут подключаться клиенты
+        // withSockJS() обеспечивает fallback для браузеров без нативной поддержки WebSocket
         registry.addEndpoint("/ws")
-                .setAllowedOrigins("http://localhost", "http://localhost:8888", "http://chatverse.local:8888", "http://localhost:30080", "http://chatverse.local:30080", "http://chatverse.local") // Используем разрешенные из SecurityConfig
+                .setAllowedOrigins( // Укажи здесь домены твоего фронтенда
+                        "http://localhost:8888", // Локальный фронтенд
+                        "http://chatverse.local:8888", // Локальный фронтенд через host
+                        "http://localhost:30080", // Kubernetes NodePort
+                        "http://chatverse.local:30080", // Kubernetes NodePort через host
+                        "http://chatverse.local"  // Если доступ через ingress без порта
+                        // Добавь другие необходимые origins
+                )
                 .withSockJS();
     }
 
@@ -33,6 +38,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.setApplicationDestinationPrefixes("/app");
 
         // Можно настроить префикс для сообщений конкретному пользователю, если понадобится
-        // registry.setUserDestinationPrefix("/user");
+         registry.setUserDestinationPrefix("/user");
     }
 }

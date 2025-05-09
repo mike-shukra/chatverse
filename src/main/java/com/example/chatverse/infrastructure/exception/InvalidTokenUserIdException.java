@@ -1,6 +1,6 @@
-package com.example.chatverse.presentation.exception;
+package com.example.chatverse.infrastructure.exception;
 
-public class InvalidTokenUserIdException extends AppException{
+public class InvalidTokenUserIdException extends AppException {
     public InvalidTokenUserIdException(String message) {
         super(message);
     }
