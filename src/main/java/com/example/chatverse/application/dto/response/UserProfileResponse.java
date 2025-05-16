@@ -1,12 +1,22 @@
 package com.example.chatverse.application.dto.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.io.Serial;
+import java.io.Serializable;
 
 @Data
 @Builder
-public class UserProfileResponse {
+@NoArgsConstructor
+@AllArgsConstructor
+public class UserProfileResponse implements Serializable {
+    @Serial
+    private static final long serialVersionUID = 1L;
+
     @Schema(description = "Имя пользователя")
     private String name;
 

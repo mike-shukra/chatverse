@@ -4,6 +4,8 @@ import com.example.chatverse.application.dto.request.*;
 import com.example.chatverse.application.dto.response.*;
 import com.example.chatverse.domain.service.AuthService;
 import com.example.chatverse.domain.service.UserService;
+import com.example.chatverse.infrastructure.exception.InvalidTokenUserIdException;
+import com.example.chatverse.infrastructure.exception.UserNotAuthenticatedException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -13,8 +15,8 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -48,17 +50,22 @@ public class UserController {
         return ResponseEntity.status(201).body(tokenResponse);
     }
 
-    @Operation(summary = "Получение текущего пользователя", description = "Возвращает профиль текущего пользователя.",
+    @Operation(summary = "Получение текущего пользователя", description = "Возвращает профиль текущего пользователя. ID пользователя извлекается из токена аутентификации.",
             security = { @SecurityRequirement(name = "bearer-key") })
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Профиль успешно получен.",
                     content = @Content(schema = @Schema(implementation = UserProfileResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Пользователь не найден.",
+            @ApiResponse(responseCode = "401", description = "Не аутентифицирован / Невалидный токен.",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Пользователь, ассоциированный с токеном, не найден.",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Некорректный идентификатор пользователя в токене.",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping("/me")
-    public ResponseEntity<UserProfileResponse> getCurrentUser(@RequestParam Long userId) {
-        UserProfileResponse profile = userService.getCurrentUser(userId);
+    public ResponseEntity<UserProfileResponse> getCurrentUser(Authentication authentication) {
+        Long currentUserId = getUserIdFromAuthentication(authentication);
+        UserProfileResponse profile = userService.getCurrentUser(currentUserId);
         return ResponseEntity.ok(profile);
     }
 
@@ -71,8 +78,9 @@ public class UserController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PutMapping("/me")
-    public ResponseEntity<UserUpdateResponse> updateUser(@RequestParam Long userId, @Validated @RequestBody UserUpdateRequest request) {
-        UserUpdateResponse response = userService.updateUserProfile(userId, request);
+    public ResponseEntity<UserUpdateResponse> updateUser(Authentication authentication, @Validated @RequestBody UserUpdateRequest request) {
+        Long currentUserId = getUserIdFromAuthentication(authentication); // Вспомогательный метод
+        UserUpdateResponse response = userService.updateUserProfile(currentUserId, request);
         return ResponseEntity.ok(response);
     }
 
@@ -84,6 +92,7 @@ public class UserController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @DeleteMapping("/{userId}")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ResponseEntity<Void> deleteUser(@PathVariable Long userId) {
         userService.deleteUser(userId);
         return ResponseEntity.noContent().build();
@@ -129,8 +138,7 @@ public class UserController {
         return ResponseEntity.ok(new SuccessResponse(true));
     }
 
-    @Operation(summary = "Обновление токена", description = "Обновляет access и refresh токены.",
-            security = { @SecurityRequirement(name = "bearer-key") })
+    @Operation(summary = "Обновление токена", description = "Обновляет access и refresh токены.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Токены успешно обновлены.",
                     content = @Content(schema = @Schema(implementation = TokenResponse.class))),
@@ -151,8 +159,9 @@ public class UserController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PostMapping("/logout")
-    public ResponseEntity<Void> logoutUser(@RequestParam Long userId) {
-        userService.logoutUser(userId);
+    public ResponseEntity<Void> logoutUser(Authentication authentication) {
+        Long currentUserId = getUserIdFromAuthentication(authentication); // Вспомогательный метод
+        userService.logoutUser(currentUserId); // Убедитесь, что этот метод сбрасывает кэш
         return ResponseEntity.ok().build();
     }
 
@@ -169,14 +178,18 @@ public class UserController {
         boolean isOnline = userService.isUserOnline(userId);
         return ResponseEntity.ok(isOnline);
     }
+
+    private Long getUserIdFromAuthentication(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated() || authentication.getName() == null) {
+            throw new UserNotAuthenticatedException("User not authenticated.");
+        }
+        try {
+            return Long.parseLong(authentication.getName());
+        } catch (NumberFormatException e) {
+            log.error("Invalid user ID format in token: {}", authentication.getName(), e);
+            throw new InvalidTokenUserIdException("Invalid user ID format in token.");
+        }
+    }
 }
 
 
-/*
-
-curl -X POST http://172.18.0.2:30080/api/v1/users/send-auth-code \
-  -H "Content-Type: application/json" \
-  -d '{
-    "phone": "1234567"  }'
-
- */
