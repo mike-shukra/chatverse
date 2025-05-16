@@ -1,8 +1,6 @@
 package com.example.chatverse.infrastructure.security;
 
-import com.example.chatverse.domain.service.AuthService;
 import com.example.chatverse.infrastructure.configuration.SecurityConfigLoader;
-import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;

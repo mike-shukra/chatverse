@@ -147,11 +147,6 @@ public class SecurityConfig {
         };
     }
 
-    // Этот метод больше не нужен, так как objectMapper инжектируется
-    // private String convertToJson(ErrorResponse errorResponse) throws IOException {
-    //     return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(errorResponse);
-    // }
-
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
@@ -169,7 +164,7 @@ public class SecurityConfig {
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")); // Добавляем PATCH, если нужно
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With")); // Добавляем стандартные заголовки
-        // configuration.setAllowCredentials(true); // Раскомментируй, если используешь cookies или Authorization
+        configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L); // Кэширование preflight запросов на 1 час
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

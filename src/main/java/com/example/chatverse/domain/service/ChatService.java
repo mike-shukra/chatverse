@@ -62,6 +62,29 @@ public class ChatService {
     }
 
     /**
+     * Принимает полностью сформированное ChatMessage DTO (обычно из WebSocket)
+     * и отправляет его через MessageProducerService.
+     * Предполагается, что messageId и timestamp уже установлены.
+     * @param chatMessage DTO сообщения для отправки.
+     */
+    public void sendWebSocketChatMessage(ChatMessage chatMessage) {
+        if (chatMessage == null) {
+            log.error("Attempted to send a null ChatMessage via WebSocket flow.");
+            return; // Или выбросить исключение
+        }
+        // Дополнительные проверки на обязательные поля, если необходимо
+        if (chatMessage.getRoomId() == null || chatMessage.getSenderId() == null || chatMessage.getContent() == null) {
+            log.error("ChatMessage is missing required fields (roomId, senderId, or content) for WebSocket flow: {}", chatMessage);
+            // Можно выбросить IllegalArgumentException или другую подходящую ошибку
+            return;
+        }
+
+        log.info("Sending WebSocket-originated message via MessageProducerService: messageId={}, roomId={}, senderId={}",
+                chatMessage.getMessageId(), chatMessage.getRoomId(), chatMessage.getSenderId());
+        messageProducerService.sendMessage(chatMessage);
+    }
+
+    /**
      * Подготавливает и отправляет сообщение через MessageProducerService.
      * @param requestDto DTO с данными для нового сообщения (ожидается recipientId и content).
      * @param authentication Информация об аутентифицированном пользователе.
@@ -131,7 +154,7 @@ public class ChatService {
      * @param userId2 ID второго пользователя.
      * @return Строковый ID комнаты.
      */
-    private String generateRoomId(Long userId1, Long userId2) {
+    public String generateRoomId(Long userId1, Long userId2) {
         if (userId1 == null || userId2 == null) {
             log.error("Cannot generate room ID with null user IDs: userId1={}, userId2={}", userId1, userId2);
             throw new IllegalArgumentException("User IDs cannot be null for generating a room ID.");

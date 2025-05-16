@@ -26,12 +26,22 @@ public class MessageConsumerService {
     private final ChatMessageMapper chatMessageMapper;
     private final SimpMessagingTemplate messagingTemplate;
 
+    // Простая вспомогательная функция для сокращения длинных сообщений в логах
+    private String getContentSnippet(String content, int maxLength) {
+        if (content == null) {
+            return "null";
+        }
+        if (content.length() <= maxLength) {
+            return content;
+        }
+        return content.substring(0, maxLength - 3) + "...";
+    }
 
     @KafkaListener(topics = "${app.kafka.topic.chat-messages:chat-messages}",
             groupId = "${spring.kafka.consumer.group-id}")
-    @Transactional // Важно для атомарности сохранения в БД и последующих действий
+    @Transactional
     public void listenChatMessages(
-            @Payload ChatMessage incomingMessageDto, // Сообщение уже десериализовано Kafka в DTO
+            @Payload ChatMessage incomingMessageDto,
             @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
             @Header(KafkaHeaders.OFFSET) long offset,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
@@ -41,43 +51,48 @@ public class MessageConsumerService {
                 incomingMessageDto.getMessageId(), key, partition, offset, topic, incomingMessageDto);
 
         try {
-            // 1. Преобразуем DTO в Entity
             ChatMessageEntity messageEntity = chatMessageMapper.toEntity(incomingMessageDto);
-
-            // 2. Сохраняем сущность и получаем сохраненную версию (может содержать сгенерированные БД значения, например, ID)
             ChatMessageEntity savedEntity = chatMessageRepository.save(messageEntity);
             log.info("Message ID=[{}] (DB ID: [{}]) saved to database. Saved entity: {}",
                     incomingMessageDto.getMessageId(), savedEntity.getId(), savedEntity);
 
-            // 3. Преобразуем сохраненную сущность обратно в DTO для отправки через WebSocket
-            // Это гарантирует, что мы отправляем самые актуальные данные, включая те, что могли быть изменены/добавлены при сохранении
             ChatMessage messageToSendViaWebSocket = chatMessageMapper.toDto(savedEntity);
+            String contentSnippet = getContentSnippet(messageToSendViaWebSocket.getContent(), 50); // Ограничим до 50 символов
 
-            // 4. Отправляем сообщение в общий топик комнаты через WebSocket
             if (messageToSendViaWebSocket.getRoomId() != null) {
                 String roomTopic = "/topic/messages/" + messageToSendViaWebSocket.getRoomId();
                 messagingTemplate.convertAndSend(roomTopic, messageToSendViaWebSocket);
-                log.info("Message ID=[{}] sent to WebSocket room topic: {}", messageToSendViaWebSocket.getMessageId(), roomTopic);
+                // Усиленное логирование для отправки в комнату
+                log.info("Sent to room topic: MessageID=[{}], RoomTopic=[{}], SenderID=[{}], RecipientID=[{}], ContentSnippet='{}'",
+                        messageToSendViaWebSocket.getMessageId(),
+                        roomTopic,
+                        messageToSendViaWebSocket.getSenderId(),
+                        messageToSendViaWebSocket.getRecipientId(), // Может быть null для комнат, но полезно видеть
+                        contentSnippet);
             } else {
-                // Этого быть не должно, если логика формирования roomId корректна перед отправкой в Kafka
                 log.warn("Message ID=[{}] has no roomId. Cannot send to WebSocket room topic.", messageToSendViaWebSocket.getMessageId());
             }
 
-            // 5. Отправляем персональное уведомление получателю, если он указан
-            // Это полезно для нотификаций пользователя о новом сообщении в любом из его чатов
             if (messageToSendViaWebSocket.getRecipientId() != null) {
                 String recipientUser = messageToSendViaWebSocket.getRecipientId().toString();
-                String privateQueue = "/queue/private"; // Spring автоматически преобразует в /user/{username}/queue/private
-                messagingTemplate.convertAndSendToUser(recipientUser, privateQueue, messageToSendViaWebSocket);
-                log.info("Message ID=[{}] sent as private notification to user: {} on destination {}",
-                        messageToSendViaWebSocket.getMessageId(), recipientUser, privateQueue);
+                String privateQueueSuffix = "/queue/messages";
+                messagingTemplate.convertAndSendToUser(recipientUser, privateQueueSuffix, messageToSendViaWebSocket);
+                // Усиленное логирование для персональной отправки
+                log.info("Sent private notification: MessageID=[{}], RecipientUserID=[{}], Destination=[/user/{}{}], SenderID=[{}], ContentSnippet='{}'",
+                        messageToSendViaWebSocket.getMessageId(),
+                        recipientUser,
+                        recipientUser, // для формирования полного пути в логе
+                        privateQueueSuffix,
+                        messageToSendViaWebSocket.getSenderId(),
+                        contentSnippet);
             }
+
+            // Для еще более детального логирования, можно добавить на уровне DEBUG:
+            // log.debug("Full message DTO sent via WebSocket: {}", messageToSendViaWebSocket);
 
         } catch (Exception e) {
             log.error("Error processing received Kafka message: ID=[{}], Key=[{}], Error: {}",
                     incomingMessageDto.getMessageId(), key, e.getMessage(), e);
-            // Перебрасываем исключение. Это приведет к откату транзакции.
-            // Kafka listener обработает это в соответствии со своей конфигурацией (например, повторная попытка или отправка в DLQ).
             throw e;
         }
     }
