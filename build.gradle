@@ -51,6 +51,9 @@ dependencies {
 
 	// Redis
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	// Lettuce использует его для пулинга
+	implementation 'org.apache.commons:commons-pool2'
+
 	// Kafka
 	implementation 'org.springframework.kafka:spring-kafka'
 
@@ -59,10 +62,8 @@ dependencies {
 	annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
 	annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0' // Если используешь Lombok + MapStruct
 
-
 	//websocket
 	implementation 'org.springframework.boot:spring-boot-starter-websocket'
-
 
 
 	// Зависимости для тестирования

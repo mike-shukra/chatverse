@@ -4,16 +4,30 @@ metadata:
   name: chatverse-ingress
   namespace: chatverse
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    # nginx.ingress.kubernetes.io/rewrite-target: /  <-- УДАЛЕНО ИЛИ ЗАКОММЕНТИРОВАНО
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
+
+    nginx.ingress.kubernetes.io/websocket: "true"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
 spec:
   ingressClassName: nginx
   rules:
     - host: chatverse.local
       http:
         paths:
-          - path: /
+          - path: /ws # Spring Boot ожидает /ws
             pathType: Prefix
+            # Перезапись URI здесь не нужна, /ws/info пойдет на бэкенд как /ws/info
+            backend:
+              service:
+                name: chatverse-app
+                port:
+                  number: 8080
+          - path: / # Для остальных API (например, /api/v1/...)
+            pathType: Prefix
+            # Если Spring Boot ожидает /api/v1/..., то перезапись здесь тоже не нужна
             backend:
               service:
                 name: chatverse-app

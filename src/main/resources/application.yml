@@ -34,6 +34,17 @@ spring:
       host: redis # Hostname of the Redis service
       port: 6379
       # password: # Uncomment and set if your Redis requires a password
+    lettuce:
+      pool:
+        max-active: 8   # Максимальное количество активных соединений
+        max-idle: 8     # Максимальное количество "простаивающих" соединений
+        min-idle: 0     # Минимальное количество "простаивающих" соединений
+        max-wait: -1ms  # Максимальное время ожидания соединения (отрицательное значение - без ограничения)
+  cache:
+    type: redis
+    redis:
+      time-to-live.users: 3600000 # 1 час для кэша "users" (в миллисекундах)
+      time-to-live.messages: 600000 # 10 минут для кэша "messages"
 
   # ===================================================================
   # Kafka Configuration

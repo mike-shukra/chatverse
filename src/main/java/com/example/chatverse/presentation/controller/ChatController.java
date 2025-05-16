@@ -1,6 +1,7 @@
 package com.example.chatverse.presentation.controller;
 
 import com.example.chatverse.application.dto.message.ChatMessage;
+import com.example.chatverse.application.dto.message.SendMessageRequestDto;
 import com.example.chatverse.domain.service.ChatService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -35,10 +36,10 @@ public class ChatController {
     @PostMapping("/messages")
     @PreAuthorize("isAuthenticated()") // Только аутентифицированные пользователи
     public ResponseEntity<Void> sendMessage(
-            @Validated @RequestBody @Parameter(description = "Данные сообщения (требуются recipientId и content)") ChatMessage message,
+            @Validated @RequestBody @Parameter(description = "Данные сообщения (требуются recipientId и content)") SendMessageRequestDto requestDto,
             Authentication authentication) {
-        chatService.sendMessage(message, authentication);
-        return ResponseEntity.ok().build(); // Возвращаем 200 OK, т.к. сообщение ушло в Kafka
+        chatService.sendMessage(requestDto, authentication); // Передаем новое DTO в сервис
+        return ResponseEntity.ok().build();
     }
 
     @Operation(summary = "Получить историю сообщений", description = "Возвращает историю сообщений для указанной комнаты чата.")

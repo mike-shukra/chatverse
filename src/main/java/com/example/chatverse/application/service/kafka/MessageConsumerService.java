@@ -1,86 +1,99 @@
 package com.example.chatverse.application.service.kafka;
 
 import com.example.chatverse.application.dto.message.ChatMessage;
-import com.example.chatverse.application.mapper.ChatMessageMapper; // Добавить импорт
-import com.example.chatverse.domain.entity.ChatMessageEntity; // Добавить импорт
-import com.example.chatverse.domain.repository.ChatMessageRepository; // Добавить импорт
-import lombok.RequiredArgsConstructor; // Добавить для конструктора
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.example.chatverse.application.mapper.ChatMessageMapper;
+import com.example.chatverse.domain.entity.ChatMessageEntity;
+import com.example.chatverse.domain.repository.ChatMessageRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional; // Для атомарности (опционально, но желательно)
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Component responsible for consuming messages from Kafka topics.
  */
 @Component
-@RequiredArgsConstructor // Используем Lombok для внедрения зависимостей
+@RequiredArgsConstructor
+@Slf4j
 public class MessageConsumerService {
 
-    private static final Logger log = LoggerFactory.getLogger(MessageConsumerService.class);
-
-    // Внедряем зависимости через конструктор (благодаря @RequiredArgsConstructor)
     private final ChatMessageRepository chatMessageRepository;
     private final ChatMessageMapper chatMessageMapper;
+    private final SimpMessagingTemplate messagingTemplate;
 
-    // TODO: Inject your WebSocket handling service here
-    // private final WebSocketService webSocketService;
+    // Простая вспомогательная функция для сокращения длинных сообщений в логах
+    private String getContentSnippet(String content, int maxLength) {
+        if (content == null) {
+            return "null";
+        }
+        if (content.length() <= maxLength) {
+            return content;
+        }
+        return content.substring(0, maxLength - 3) + "...";
+    }
 
     @KafkaListener(topics = "${app.kafka.topic.chat-messages:chat-messages}",
             groupId = "${spring.kafka.consumer.group-id}")
-    @Transactional // Опционально: чтобы сохранение в БД и коммит офсета были атомарны
+    @Transactional
     public void listenChatMessages(
-            @Payload ChatMessage message,
+            @Payload ChatMessage incomingMessageDto,
             @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
             @Header(KafkaHeaders.OFFSET) long offset,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
-            @Header(name = KafkaHeaders.RECEIVED_KEY, required = false) String key // Key might be null
+            @Header(name = KafkaHeaders.RECEIVED_KEY, required = false) String key
     ) {
-        log.info("Received message: ID=[{}], Key=[{}], Partition=[{}], Offset=[{}], Topic=[{}], Payload=[{}]",
-                message.getMessageId(), key, partition, offset, topic, message);
+        log.info("Received Kafka message: ID=[{}], Key=[{}], Partition=[{}], Offset=[{}], Topic=[{}], Payload=[{}]",
+                incomingMessageDto.getMessageId(), key, partition, offset, topic, incomingMessageDto);
 
         try {
-            // --- НАЧАЛО ЛОГИКИ ОБРАБОТКИ ---
+            ChatMessageEntity messageEntity = chatMessageMapper.toEntity(incomingMessageDto);
+            ChatMessageEntity savedEntity = chatMessageRepository.save(messageEntity);
+            log.info("Message ID=[{}] (DB ID: [{}]) saved to database. Saved entity: {}",
+                    incomingMessageDto.getMessageId(), savedEntity.getId(), savedEntity);
 
-            // 1. Сохраняем сообщение в базу данных
-            ChatMessageEntity messageEntity = chatMessageMapper.toEntity(message);
-            // Важно: Убедись, что маппер корректно преобразует DTO в Entity
-            // Возможно, нужно дозаполнить какие-то поля Entity, если их нет в DTO
-            chatMessageRepository.save(messageEntity);
-            log.info("Message ID=[{}] saved to database.", message.getMessageId());
+            ChatMessage messageToSendViaWebSocket = chatMessageMapper.toDto(savedEntity);
+            String contentSnippet = getContentSnippet(messageToSendViaWebSocket.getContent(), 50); // Ограничим до 50 символов
 
-            // 2. Отправляем сообщение через WebSocket (когда будет реализовано)
-            if (message.getRecipientId() != null && message.getRoomId() != null) { // Убедимся что roomId есть для приватных чатов
-                log.debug("Processing private message for recipient: {} in room {}", message.getRecipientId(), message.getRoomId());
-                // webSocketService.sendMessageToUser(message.getRecipientId(), message); // Раскомментировать когда будет WebSocketService
-                // Возможно, нужно отправлять и отправителю для отображения в его окне
-                // webSocketService.sendMessageToUser(message.getSenderId(), message);
-                // Или лучше отправлять в комнату, а фронтенд разберется
-                // webSocketService.sendMessageToRoom(message.getRoomId(), message);
-            } else if (message.getRoomId() != null) { // Для общих комнат (если будут)
-                log.debug("Processing room message for room: {}", message.getRoomId());
-                // webSocketService.sendMessageToRoom(message.getRoomId(), message);
+            if (messageToSendViaWebSocket.getRoomId() != null) {
+                String roomTopic = "/topic/messages/" + messageToSendViaWebSocket.getRoomId();
+                messagingTemplate.convertAndSend(roomTopic, messageToSendViaWebSocket);
+                // Усиленное логирование для отправки в комнату
+                log.info("Sent to room topic: MessageID=[{}], RoomTopic=[{}], SenderID=[{}], RecipientID=[{}], ContentSnippet='{}'",
+                        messageToSendViaWebSocket.getMessageId(),
+                        roomTopic,
+                        messageToSendViaWebSocket.getSenderId(),
+                        messageToSendViaWebSocket.getRecipientId(), // Может быть null для комнат, но полезно видеть
+                        contentSnippet);
             } else {
-                log.warn("Received message without recipientId or roomId: {}", message.getMessageId());
-                // Возможно, такие сообщения не должны сохраняться или требуют особой обработки
+                log.warn("Message ID=[{}] has no roomId. Cannot send to WebSocket room topic.", messageToSendViaWebSocket.getMessageId());
             }
-            // --- КОНЕЦ ЛОГИКИ ОБРАБОТКИ ---
 
-            // Если не было исключений, Spring Kafka автоматически коммитит offset (если enable.auto.commit=false и нет @Transactional)
-            // Если используется @Transactional, коммит произойдет после успешного завершения транзакции.
+            if (messageToSendViaWebSocket.getRecipientId() != null) {
+                String recipientUser = messageToSendViaWebSocket.getRecipientId().toString();
+                String privateQueueSuffix = "/queue/messages";
+                messagingTemplate.convertAndSendToUser(recipientUser, privateQueueSuffix, messageToSendViaWebSocket);
+                // Усиленное логирование для персональной отправки
+                log.info("Sent private notification: MessageID=[{}], RecipientUserID=[{}], Destination=[/user/{}{}], SenderID=[{}], ContentSnippet='{}'",
+                        messageToSendViaWebSocket.getMessageId(),
+                        recipientUser,
+                        recipientUser, // для формирования полного пути в логе
+                        privateQueueSuffix,
+                        messageToSendViaWebSocket.getSenderId(),
+                        contentSnippet);
+            }
+
+            // Для еще более детального логирования, можно добавить на уровне DEBUG:
+            // log.debug("Full message DTO sent via WebSocket: {}", messageToSendViaWebSocket);
 
         } catch (Exception e) {
-            log.error("Error processing received message: ID=[{}], Key=[{}], Error: {}",
-                    message.getMessageId(), key, e.getMessage(), e);
-            // Важно: Если произошла ошибка (например, при сохранении в БД),
-            // offset НЕ должен быть закоммичен, чтобы сообщение было обработано повторно.
-            // Spring Kafka с @Transactional или без auto-commit позаботится об этом.
-            // Рассмотри настройку Dead Letter Queue (DLQ) для сообщений, которые не удается обработать после нескольких попыток.
-            throw e; // Перебрасываем исключение, чтобы Spring Kafka понял, что обработка не удалась
+            log.error("Error processing received Kafka message: ID=[{}], Key=[{}], Error: {}",
+                    incomingMessageDto.getMessageId(), key, e.getMessage(), e);
+            throw e;
         }
     }
 }
