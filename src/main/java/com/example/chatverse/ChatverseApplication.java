@@ -8,11 +8,11 @@ import org.springframework.cache.annotation.EnableCaching;
 
 @SpringBootApplication
 @EnableCaching
-@OpenAPIDefinition(servers = {
-		@Server(url = "http://chatverse.local:8888", description = "Development server (via port-forward/NodePort)"),
-		// Можно добавить другие серверы, например, для продакшена
-		// @Server(url = "https://prod.chatverse.com", description = "Production server")
-})
+//@OpenAPIDefinition(servers = {
+//		@Server(url = "http://chatverse.local:8888", description = "Development server (via port-forward/NodePort)"),
+//		// Можно добавить другие серверы, например, для продакшена
+//		// @Server(url = "https://prod.chatverse.com", description = "Production server")
+//})
 public class ChatverseApplication {
 
 	public static void main(String[] args) {

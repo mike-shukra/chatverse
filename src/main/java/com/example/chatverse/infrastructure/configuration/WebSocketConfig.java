@@ -35,6 +35,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         // withSockJS() обеспечивает fallback для браузеров без нативной поддержки WebSocket
         registry.addEndpoint("/ws")
                 .setAllowedOriginPatterns( // Укажи здесь домены твоего фронтенда
+                        "http://10.0.2.2:8080", // Локальный фронтенд
                         "http://localhost:8888", // Локальный фронтенд
                         "http://chatverse.local:8888", // Локальный фронтенд через host
                         "http://localhost:30080", // Kubernetes NodePort

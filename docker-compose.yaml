@@ -1,53 +1,147 @@
-#services:
-#  postgres:
-#    image: postgres:15
-#    container_name: postgres
-#    environment:
-#      POSTGRES_DB: chatverse
-#      POSTGRES_USER: postgres
-#      POSTGRES_PASSWORD: postgre
-#      POSTGRES_INITDB_ARGS: "--lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8"
-#      PGDATA: /var/lib/postgresql/data/pgdata
-#    ports:
-#      - "5433:5432"
-#    restart: always
-#    volumes:
-#      - postgres_data:/var/lib/postgresql/data
-#    networks:
-#      - chatverse-network
-#    deploy:
-#      resources:
-#        limits:
-#          memory: 512M  # Максимальный объем памяти
-#        reservations:
-#          memory: 256M  # Минимальный объем памяти
-#
-#  app:
-#    build:
-#      context: .
-#      dockerfile: Dockerfile
-#    container_name: chatverse-app
-#    environment:
-#      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/chatverse
-#      SPRING_DATASOURCE_USERNAME: postgres
-#      SPRING_DATASOURCE_PASSWORD: postgre
-#    depends_on:
-#      - postgres
-#    ports:
-#      - "8080:8080" # Проброс порта приложения
-#    networks:
-#      - chatverse-network
-#    deploy:
-#      resources:
-#        limits:
-#          memory: 512M  # Максимальный объем памяти
-#        reservations:
-#          memory: 256M  # Минимальный объем памяти
-#
-#volumes:
-#  postgres_data:
-#    driver: local
-#
-#networks:
-#  chatverse-network:
-#    driver: bridge
+version: '3.8' # Рекомендуется указывать версию docker-compose
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.0.1 # Популярный образ для Zookeeper
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181" # Если нужен доступ к Zookeeper с хост-машины
+    networks:
+      - chatverse-network
+    healthcheck: # Проверка состояния Zookeeper
+      test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.0.1 # Популярный образ для Kafka
+    container_name: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy # Запускать Kafka после того, как Zookeeper будет готов
+    ports:
+      - "9092:9092" # Для доступа к Kafka с хост-машины (например, Kafka-клиентом)
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181' # Kafka подключается к Zookeeper по имени сервиса
+      # KAFKA_ADVERTISED_LISTENERS: Внешний и внутренний слушатели
+      # PLAINTEXT://localhost:9092 - для доступа с хост-машины (Windows)
+      # PLAINTEXT_INTERNAL://kafka:29092 - для доступа из других контейнеров (например, твоего приложения)
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL # Для общения между брокерами, если их несколько
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1 # Для однонодового кластера
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # Специфичные для Confluent Cloud (можно удалить, если используешь другой образ Kafka, например, bitnami)
+      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    networks:
+      - chatverse-network
+    healthcheck: # Простая проверка доступности порта Kafka
+      test: ["CMD-SHELL", "nc -z kafka 29092"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine # Легковесный образ Redis
+    container_name: redis
+    ports:
+      - "6379:6379" # Для доступа к Redis с хост-машины
+    volumes:
+      - redis_data:/data # Сохранение данных Redis
+    networks:
+      - chatverse-network
+    healthcheck: # Проверка состояния Redis
+      test: ["CMD", "redis-cli", "--raw", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy: # Ограничения ресурсов (опционально, но полезно)
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_DB: chatverse
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgre # Для реальных проектов лучше использовать Docker Secrets
+      POSTGRES_INITDB_ARGS: "--lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5433:5432" # Локальный порт 5433 мапится на порт 5432 контейнера
+    restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Сохранение данных PostgreSQL
+    networks:
+      - chatverse-network
+    healthcheck: # Проверка состояния PostgreSQL
+      test: ["CMD-SHELL", "pg_isready -U postgres -d chatverse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy: # Ограничения ресурсов (опционально)
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  app:
+    build:
+      context: . # Dockerfile должен находиться в корне проекта
+      dockerfile: Dockerfile
+    container_name: chatverse-app
+    environment:
+      # Подключение к PostgreSQL
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/chatverse
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgre
+      # Подключение к Kafka
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092 # Приложение подключается к Kafka по внутреннему слушателю
+      SPRING_KAFKA_CONSUMER_GROUP_ID: chatverse-app-group # Идентификатор группы консьюмеров
+      # Подключение к Redis
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      # URL для Swagger UI (если отличается от дефолтного в application.yml для Docker-окружения)
+      SWAGGER_SERVER_URL: http://localhost:8080 # Указываем, что Swagger UI должен использовать этот URL
+      # Другие переменные окружения для приложения, если нужны
+      # SERVER_PORT: 8080 (порт по умолчанию для Spring Boot, EXPOSE в Dockerfile)
+    depends_on: # Зависимости между сервисами
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy # Запускать приложение после того, как Kafka будет готов
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080" # Проброс порта приложения на хост-машину
+    networks:
+      - chatverse-network
+    deploy: # Ограничения ресурсов (опционально)
+      resources:
+        limits:
+          memory: 768M # Настройте в зависимости от потребностей приложения
+        reservations:
+          memory: 512M
+
+volumes: # Определяем именованные тома для сохранения данных
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks: # Определяем сеть для взаимодействия контейнеров
+  chatverse-network:
+    driver: bridge

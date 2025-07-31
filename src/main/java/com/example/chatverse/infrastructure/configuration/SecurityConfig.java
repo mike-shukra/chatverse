@@ -152,6 +152,8 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         // ВАЖНО: Для отладки используем "*", но для продакшена укажи конкретные домены!
         configuration.setAllowedOrigins(List.of(
+                "http://10.0.2.2:8080",
+                "http://localhost:8080",
                 "http://localhost",
                 "http://localhost:8888",
                 "http://chatverse.local:8888",
