@@ -31,8 +31,9 @@ spec:
                 - sh
                 - -c
                 - "echo srvr | nc localhost 2181 | grep Mode"
-            initialDelaySeconds: 30
-            periodSeconds: 10
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
           resources:
             requests:
               memory: "512Mi"
