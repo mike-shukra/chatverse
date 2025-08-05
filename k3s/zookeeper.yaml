@@ -30,7 +30,7 @@ spec:
               command:
                 - sh
                 - -c
-                - "echo ruok | nc localhost 2181 | grep imok"
+                - "echo srvr | nc localhost 2181 | grep Mode"
             initialDelaySeconds: 30
             periodSeconds: 10
           resources:
