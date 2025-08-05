@@ -24,7 +24,7 @@ spec:
             - name: ALLOW_ANONYMOUS_LOGIN
               value: "yes"
             - name: ZOO_HEAP_SIZE
-              value: "128M"  # Уменьшаем для Raspberry Pi
+              value: "128"  # Уменьшаем для Raspberry Pi
           ports:
             - containerPort: 2181
           volumeMounts:

@@ -20,7 +20,7 @@ spec:
             - name: ALLOW_ANONYMOUS_LOGIN
               value: "yes"  # Ключевое исправление!
             - name: ZOO_HEAP_SIZE
-              value: "256M"
+              value: "256"
             - name: ZOO_ENABLE_AUTH  # Добавляем явное отключение аутентификации
               value: "no"
           ports:
