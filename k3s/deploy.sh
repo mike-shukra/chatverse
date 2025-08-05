@@ -5,27 +5,38 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 K3S_DIR="$PROJECT_DIR/k3s"
 NAMESPACE="chatverse"
 
-# 1. Сборка приложения (на Raspberry Pi)
-echo "🔨 Building application with Gradle..."
+# Fix kubeconfig permissions
+if [ ! -r "/etc/rancher/k3s/k3s.yaml" ]; then
+    echo "🔧 Fixing kubeconfig permissions..."
+    sudo chmod 644 /etc/rancher/k3s/k3s.yaml
+fi
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+# Fix Gradle Wrapper permissions
+echo "🔧 Fixing permissions..."
 cd "$PROJECT_DIR"
+[ -f "gradlew" ] && chmod +x gradlew
+
+# Build application
+echo "🔨 Building application with Gradle..."
 ./gradlew clean build -x test
 
-# 2. Сборка Docker-образа
+# Build Docker image
 echo "🐳 Building Docker image..."
 docker build -t yourusername/chatverse-app:arm64 .
 
-# 3. Применение конфигураций Kubernetes
+# Deploy to k3s
 echo "🚀 Deploying to k3s..."
 kubectl apply -f "$K3S_DIR/namespace.yaml"
 kubectl apply -f "$K3S_DIR/postgres.yaml" -n $NAMESPACE
 kubectl apply -f "$K3S_DIR/redis.yaml" -n $NAMESPACE
 kubectl apply -f "$K3S_DIR/kafka.yaml" -n $NAMESPACE
 
-# 4. Развертывание приложения
+# Deploy application
 export IMAGE_NAME="yourusername/chatverse-app:arm64"
 envsubst < "$K3S_DIR/app.template.yaml" | kubectl apply -n $NAMESPACE -f -
 
-# 5. Применение Ingress
+# Apply Ingress
 kubectl apply -f "$K3S_DIR/ingress.yaml" -n $NAMESPACE
 
 echo "✅ Deployment complete!"
