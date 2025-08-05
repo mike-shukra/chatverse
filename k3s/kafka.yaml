@@ -38,13 +38,13 @@ spec:
             - name: KAFKA_CFG_ZOOKEEPER_CONNECT
               value: "zookeeper:2181"
 
-            # Настройки слушателей
+            # Настройки слушателей (исправлено)
             - name: KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP
               value: "PLAINTEXT:PLAINTEXT"
             - name: KAFKA_CFG_LISTENERS
               value: "PLAINTEXT://:9092"
             - name: KAFKA_CFG_ADVERTISED_LISTENERS
-              value: "PLAINTEXT://kafka:9092,EXTERNAL://$(hostname -f):31012"
+              value: "PLAINTEXT://kafka:9092"
 
             # Оптимизация для Raspberry Pi
             - name: KAFKA_HEAP_OPTS
@@ -67,7 +67,6 @@ spec:
           ports:
             - containerPort: 9092
 
-          # Ресурсы для Raspberry Pi
           resources:
             requests:
               memory: "256Mi"
@@ -76,7 +75,6 @@ spec:
               memory: "512Mi"
               cpu: "500m"
 
-          # Проверки жизнеспособности
           livenessProbe:
             exec:
               command:
