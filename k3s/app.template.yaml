@@ -29,7 +29,8 @@ spec:
     spec:
       containers:
         - name: chatverse-app
-          image: ${IMAGE_NAME}
+          image: ${IMAGE_NAME}  # Заменится при деплое через deploy.sh
+          imagePullPolicy: IfNotPresent  # Важно для локальных образов
           ports:
             - containerPort: 8080
           env:
@@ -44,7 +45,9 @@ spec:
             - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
               value: kafka:9092
             - name: JAVA_OPTS
-              value: "-Xmx512m -Xms256m"
+              value: "-Xmx512m -Xms256m -Djava.security.egd=file:/dev/./urandom"  # Добавлен security.egd
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"  # Добавлен явный профиль
           resources:
             requests:
               memory: "512Mi"
@@ -56,11 +59,23 @@ spec:
             httpGet:
               path: /actuator/health
               port: 8080
-            initialDelaySeconds: 60
-            periodSeconds: 10
+            initialDelaySeconds: 90  # Увеличен для Raspberry Pi
+            periodSeconds: 15
+            failureThreshold: 3
+            timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
               port: 8080
-            initialDelaySeconds: 30
-            periodSeconds: 5
+            initialDelaySeconds: 45  # Увеличен для Raspberry Pi
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+          startupProbe:  # Добавлен startupProbe для медленного старта
+            httpGet:
+              path: /actuator/health/startup
+              port: 8080
+            failureThreshold: 30
+            periodSeconds: 10
+      restartPolicy: Always  # Явное указание политики
+      terminationGracePeriodSeconds: 30  # Время на graceful shutdown

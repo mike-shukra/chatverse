@@ -13,54 +13,41 @@ IMAGE_NAME="${DOCKER_USERNAME}/chatverse-app:arm64"
 [ ! -r "/etc/rancher/k3s/k3s.yaml" ] && sudo chmod 644 /etc/rancher/k3s/k3s.yaml
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
-# Очистка предыдущих версий
-echo "🧹 Cleaning up previous deployment..."
+echo "🧹 Удаляем предыдущую версию приложения..."
 kubectl delete -f "$K3S_DIR/app.template.yaml" --ignore-not-found
 kubectl delete -f "$K3S_DIR/ingress.yaml" --ignore-not-found
-kubectl delete -f "$K3S_DIR/kafka.yaml" --ignore-not-found
 
-# Удаляем старые образы
-echo "🗑️ Removing old Docker images..."
+# Удаляем старые образы приложения
+echo "🗑️ Удаляем старые Docker-образы приложения..."
 docker rmi -f $(docker images | grep "chatverse-app" | awk '{print $3}') || true
 
-# Fix permissions
+# Переходим в директорию проекта
 cd "$PROJECT_DIR"
-[ -f "gradlew" ] && chmod +x gradlew
 
-# Build
-echo "🔨 Building application..."
+# Сборка приложения
+echo "🔨 Собираем приложение..."
 ./gradlew clean build -x test
 
-# Docker build
-echo "🐳 Building Docker image as ${IMAGE_NAME}..."
+# Сборка Docker-образа
+echo "🐳 Собираем Docker-образ ${IMAGE_NAME}..."
 docker build --platform linux/arm64 -t "$IMAGE_NAME" .
 
 # Проверка, что образ создался
 if ! docker inspect "$IMAGE_NAME" &> /dev/null; then
-  echo "❌ Docker image not found!"
+  echo "❌ Docker-образ не найден!"
   exit 1
 fi
 
-# Deploy
-echo "🚀 Deploying to k3s..."
-kubectl apply -f "$K3S_DIR/namespace.yaml"
-kubectl apply -f "$K3S_DIR/postgres.yaml" -n $NAMESPACE
-kubectl apply -f "$K3S_DIR/redis.yaml" -n $NAMESPACE
-kubectl apply -f "$K3S_DIR/kafka.yaml" -n $NAMESPACE
-
-# Ждем готовности Kafka
-echo "⏳ Waiting for Kafka to be ready..."
-kubectl wait --for=condition=ready pod -l app=kafka -n $NAMESPACE --timeout=300s
-
-# Deploy app with substituted image name
+# Деплой приложения
+echo "🚀 Развертываем приложение..."
 export IMAGE_NAME
 envsubst < "$K3S_DIR/app.template.yaml" | kubectl apply -n $NAMESPACE -f -
 
-# Apply ingress
+# Применяем Ingress
 kubectl apply -f "$K3S_DIR/ingress.yaml" -n $NAMESPACE
 
-echo "✅ Deployment complete! Image: ${IMAGE_NAME}"
+echo "✅ Приложение успешно развернуто! Образ: ${IMAGE_NAME}"
 
 # Мониторинг статуса
-echo "🔍 Monitoring deployment status..."
-kubectl get pods -n $NAMESPACE -w
+echo "🔍 Отслеживаем статус пода..."
+kubectl get pods -n $NAMESPACE -l app=chatverse-app -w
