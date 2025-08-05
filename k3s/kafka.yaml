@@ -1,52 +1,37 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: kafka
-  namespace: chatverse
-spec:
-  type: NodePort
-  ports:
-    - port: 9092
-      targetPort: 9092
-      nodePort: 31012
-  selector:
-    app: kafka
----
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
-  name: kafka
+  name: zookeeper
   namespace: chatverse
 spec:
-  serviceName: "kafka"
   replicas: 1
   selector:
     matchLabels:
-      app: kafka
+      app: zookeeper
   template:
     metadata:
       labels:
-        app: kafka
+        app: zookeeper
     spec:
+      securityContext:
+        fsGroup: 1001  # Добавляем группу для доступа к volume
       containers:
-        - name: kafka
-          image: bitnami/kafka:3.6.1-debian-11-r3
+        - name: zookeeper
+          image: bitnami/zookeeper:3.8.2-debian-11-r0
+          securityContext:
+            runAsUser: 1001  # Явно указываем пользователя
           env:
-            - name: KAFKA_ADVERTISED_HOST_NAME
-              value: "kafka"
-            - name: KAFKA_ADVERTISED_PORT
-              value: "9092"
-            - name: KAFKA_ZOOKEEPER_CONNECT
-              value: "zookeeper:2181"
-            - name: KAFKA_CREATE_TOPICS
-              value: "messages:1:1"
+            - name: ALLOW_ANONYMOUS_LOGIN
+              value: "yes"
+            - name: ZOO_HEAP_SIZE
+              value: "128M"  # Уменьшаем для Raspberry Pi
           ports:
-            - containerPort: 9092
-          resources:
-            requests:
-              memory: "512Mi"
-              cpu: "500m"
-            limits:
-              memory: "1Gi"
-              cpu: "1"
----
+            - containerPort: 2181
+          volumeMounts:
+            - name: zookeeper-data
+              mountPath: /bitnami/zookeeper
+      volumes:
+        - name: zookeeper-data
+          hostPath:
+            path: /mnt/zookeeper-data
+            type: DirectoryOrCreate
