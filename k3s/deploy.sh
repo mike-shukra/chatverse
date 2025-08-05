@@ -1,34 +1,32 @@
 #!/bin/bash
 set -e
 
-PROJECT_ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+K3S_DIR="$PROJECT_DIR/k3s"
 NAMESPACE="chatverse"
-APP_NAME="chatverse-app"
-IMAGE_NAME="yourusername/chatverse-app:arm64"
 
-apply_manifest() {
-  echo "🔹 Applying $1..."
-  kubectl apply -f "$1"
-}
+# 1. Сборка приложения (на Raspberry Pi)
+echo "🔨 Building application with Gradle..."
+cd "$PROJECT_DIR"
+./gradlew clean build -x test
 
-apply_ns_manifest() {
-  echo "🔹 Applying $1 in namespace $NAMESPACE..."
-  kubectl apply -n "$NAMESPACE" -f "$1"
-}
+# 2. Сборка Docker-образа
+echo "🐳 Building Docker image..."
+docker build -t yourusername/chatverse-app:arm64 .
 
-# Создаем namespace
-apply_manifest "${PROJECT_ROOT_DIR}/k8s/namespace.yaml"
+# 3. Применение конфигураций Kubernetes
+echo "🚀 Deploying to k3s..."
+kubectl apply -f "$K3S_DIR/namespace.yaml"
+kubectl apply -f "$K3S_DIR/postgres.yaml" -n $NAMESPACE
+kubectl apply -f "$K3S_DIR/redis.yaml" -n $NAMESPACE
+kubectl apply -f "$K3S_DIR/kafka.yaml" -n $NAMESPACE
 
-# Установка зависимостей
-apply_ns_manifest "${PROJECT_ROOT_DIR}/k8s/postgres.yaml"
-apply_ns_manifest "${PROJECT_ROOT_DIR}/k8s/redis.yaml"
-apply_ns_manifest "${PROJECT_ROOT_DIR}/k8s/kafka.yaml"
+# 4. Развертывание приложения
+export IMAGE_NAME="yourusername/chatverse-app:arm64"
+envsubst < "$K3S_DIR/app.template.yaml" | kubectl apply -n $NAMESPACE -f -
 
-# Деплой приложения
-echo "🚀 Deploying application..."
-envsubst < "${PROJECT_ROOT_DIR}/k8s/app.template.yaml" | kubectl apply -n "$NAMESPACE" -f -
+# 5. Применение Ingress
+kubectl apply -f "$K3S_DIR/ingress.yaml" -n $NAMESPACE
 
-# Применяем Ingress
-apply_ns_manifest "${PROJECT_ROOT_DIR}/k8s/ingress.yaml"
-
-echo "✅ Deployment completed!"
+echo "✅ Deployment complete!"
+kubectl get pods -n $NAMESPACE
