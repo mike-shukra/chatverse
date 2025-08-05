@@ -16,12 +16,35 @@ spec:
       containers:
         - name: zookeeper
           image: bitnami/zookeeper:3.8.2-debian-11-r0
+          env:
+            - name: ALLOW_ANONYMOUS_LOGIN
+              value: "yes"  # Ключевое исправление!
+            - name: ZOO_HEAP_SIZE
+              value: "256M"
+            - name: ZOO_ENABLE_AUTH  # Добавляем явное отключение аутентификации
+              value: "no"
           ports:
             - containerPort: 2181
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "echo ruok | nc localhost 2181 | grep imok"
+            initialDelaySeconds: 30
+            periodSeconds: 10
           resources:
             requests:
-              memory: "256Mi"
-              cpu: "250m"
-            limits:
               memory: "512Mi"
+              cpu: "300m"
+            limits:
+              memory: "768Mi"
               cpu: "500m"
+          volumeMounts:
+            - name: zookeeper-data
+              mountPath: /bitnami/zookeeper
+      volumes:
+        - name: zookeeper-data
+          hostPath:
+            path: /mnt/zookeeper-data
+            type: DirectoryOrCreate
