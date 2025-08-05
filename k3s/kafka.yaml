@@ -32,24 +32,67 @@ spec:
         - name: kafka
           image: bitnami/kafka:3.6.1-debian-11-r3
           env:
+            # Основные настройки
             - name: ALLOW_PLAINTEXT_LISTENER
               value: "yes"
             - name: KAFKA_CFG_ZOOKEEPER_CONNECT
               value: "zookeeper:2181"
+
+            # Настройки слушателей
             - name: KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP
               value: "PLAINTEXT:PLAINTEXT"
             - name: KAFKA_CFG_LISTENERS
               value: "PLAINTEXT://:9092"
             - name: KAFKA_CFG_ADVERTISED_LISTENERS
-              value: "PLAINTEXT://kafka:9092"
+              value: "PLAINTEXT://kafka:9092,EXTERNAL://$(hostname -f):31012"
+
+            # Оптимизация для Raspberry Pi
+            - name: KAFKA_HEAP_OPTS
+              value: "-Xmx256m -Xms128m"
+            - name: KAFKA_CFG_NUM_PARTITIONS
+              value: "1"
+            - name: KAFKA_CFG_DEFAULT_REPLICATION_FACTOR
+              value: "1"
+
+            # Автосоздание тем
             - name: KAFKA_CREATE_TOPICS
               value: "messages:1:1"
+
+            # Дополнительные настройки
+            - name: KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE
+              value: "true"
+            - name: KAFKA_CFG_LOG_RETENTION_HOURS
+              value: "24"
+
           ports:
             - containerPort: 9092
+
+          # Ресурсы для Raspberry Pi
           resources:
             requests:
+              memory: "256Mi"
+              cpu: "300m"
+            limits:
               memory: "512Mi"
               cpu: "500m"
-            limits:
-              memory: "1Gi"
-              cpu: "1"
+
+          # Проверки жизнеспособности
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "/opt/bitnami/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "/opt/bitnami/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 5
